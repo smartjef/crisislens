@@ -1,12 +1,11 @@
 crisislens/
-│
 ├── data/
-│   ├── raw/              # Original downloaded datasets
-│   ├── processed/        # Cleaned & merged data
+│   ├── raw/                # Original downloaded datasets
+│   └── processed/          # Cleaned & merged data
 │
 ├── notebooks/
 │   ├── 01_explore_data.ipynb
-│   ├── 02_feature_engineering.ipynb
+│   └── 02_feature_engineering.ipynb
 │
 ├── src/
 │   ├── ingestion/
@@ -25,4 +24,3 @@ crisislens/
 │
 ├── requirements.txt
 └── README.md
- 
