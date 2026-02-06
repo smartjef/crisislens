@@ -30,41 +30,20 @@ CrisisLens addresses this gap by:
 
 The repository is organized into clear, modular components that reflect the full data-to-decision pipeline.
 
-### Data
+### Backend (Django)
 
-data/
+backend/
 
-* raw: Original downloaded datasets
-* processed: Cleaned and merged datasets ready for analysis
+* crisislens/: Django project settings and routing
+* api/: REST API endpoints and scoring logic
 
-### Notebooks
+### Frontend (React)
 
-notebooks/
+frontend/
 
-* 01_explore_data.ipynb: Initial data exploration and validation
-* 02_feature_engineering.ipynb: Feature creation and experimentation
-
-### Source Code
-
-src/
-
-* ingestion/
-
-  * rainfall.py: Rainfall data collection and parsing
-  * ndvi.py: Vegetation index ingestion
-  * food_prices.py: Market price data ingestion
-
-* processing/
-
-  * drought_features.py: Feature engineering for drought indicators
-
-* models/
-
-  * drought_model.py: Machine learning model definition and training
-
-* api/
-
-  * main.py: API entry point for serving predictions
+* src/: React UI for drought and flood risk scoring
+* src/data/kenyaCounties.json: Placeholder GeoJSON grid for 47 counties (swap with official boundaries)
+* index.html: Vite entry point
 
 ### Root Files
 
@@ -78,13 +57,75 @@ src/
 ### Prerequisites
 
 * Python 3.9+
-* pip or virtualenv
+* Node.js 18+
 
 ### Installation
 
 ```bash
 pip install -r requirements.txt
 ```
+
+If you run the backend from inside the `backend/` folder on Windows, you can also use:
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+### Run the API (Django)
+
+```bash
+cd backend
+python manage.py migrate
+python manage.py runserver 8000
+```
+
+### Run the Frontend (React)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The React app expects the Django API to be running on `http://localhost:8000`.
+
+The backend enables CORS via `django-cors-headers` for local development, so the React
+app can call the API without browser blocking.
+
+### Troubleshooting Vite parse errors
+
+If Vite reports `import`/`export` only allowed at the top level, ensure `frontend/src/App.jsx`
+has a single component definition and has not been duplicated by a merge conflict. Replacing
+your local file with the repo version should resolve the error.
+
+### AI feedback setup
+
+The generative feedback panel calls `POST /api/ai/feedback/` on the backend. Set the API
+key in your shell before running Django:
+
+```bash
+export OPENAI_API_KEY=your_key_here
+```
+
+### Sample API requests
+
+Then request a drought prediction:
+
+```bash
+curl -X POST http://localhost:8000/api/drought/predict/ \
+  -H "Content-Type: application/json" \
+  -d '{"rainfall_deviation": -22, "ndvi_stress": 0.58, "price_volatility": 18, "historical_phase": "Alert"}'
+```
+
+Flood prediction example:
+
+```bash
+curl -X POST http://localhost:8000/api/flood/predict/ \
+  -H "Content-Type: application/json" \
+  -d '{"rainfall_accumulation": 140, "soil_moisture": 0.7, "elevation": 120, "past_flood_occurrence": true}'
+```
+
+The responses return percentage risk scores alongside projected phase or lead time.
 
 ---
 
@@ -115,4 +156,3 @@ pip install -r requirements.txt
 * Deploy scalable API infrastructure
 
 ---
-
