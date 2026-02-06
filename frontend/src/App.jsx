@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { GeoJSON, MapContainer, Marker, TileLayer } from "react-leaflet";
-import L from "leaflet";
+import { GeoJSON, MapContainer, TileLayer } from "react-leaflet";
 import kenyaCounties from "./data/kenyaCounties.json";
 
 // --- Static MVP risk data (swap with backend API calls when ready) ---
@@ -52,224 +51,6 @@ const BASE_COUNTY_RISK = {
   }
 };
 
-// --- Area-level shading (sample towns/areas for MVP) ---
-const AREA_RISK_DATA = {
-  Nairobi: [
-    {
-      name: "Embakasi",
-      riskType: "flood",
-      riskPercent: 78,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [36.94, -1.28],
-            [37.02, -1.28],
-            [37.02, -1.36],
-            [36.94, -1.36],
-            [36.94, -1.28]
-          ]
-        ]
-      }
-    },
-    {
-      name: "CBD",
-      riskType: "flood",
-      riskPercent: 55,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [36.82, -1.27],
-            [36.86, -1.27],
-            [36.86, -1.30],
-            [36.82, -1.30],
-            [36.82, -1.27]
-          ]
-        ]
-      }
-    },
-    {
-      name: "Karen",
-      riskType: "flood",
-      riskPercent: 34,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [36.70, -1.38],
-            [36.78, -1.38],
-            [36.78, -1.43],
-            [36.70, -1.43],
-            [36.70, -1.38]
-          ]
-        ]
-      }
-    },
-    {
-      name: "Westlands",
-      riskType: "flood",
-      riskPercent: 47,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [36.79, -1.25],
-            [36.84, -1.25],
-            [36.84, -1.29],
-            [36.79, -1.29],
-            [36.79, -1.25]
-          ]
-        ]
-      }
-    }
-  ],
-  Turkana: [
-    {
-      name: "Lodwar",
-      riskType: "drought",
-      riskPercent: 82,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [35.45, 4.2],
-            [35.55, 4.2],
-            [35.55, 4.1],
-            [35.45, 4.1],
-            [35.45, 4.2]
-          ]
-        ]
-      }
-    },
-    {
-      name: "Kakuma",
-      riskType: "drought",
-      riskPercent: 64,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [34.82, 4.32],
-            [34.92, 4.32],
-            [34.92, 4.22],
-            [34.82, 4.22],
-            [34.82, 4.32]
-          ]
-        ]
-      }
-    }
-  ],
-  Kisumu: [
-    {
-      name: "Nyamasaria",
-      riskType: "flood",
-      riskPercent: 72,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [34.78, -0.22],
-            [34.86, -0.22],
-            [34.86, -0.30],
-            [34.78, -0.30],
-            [34.78, -0.22]
-          ]
-        ]
-      }
-    },
-    {
-      name: "Kondele",
-      riskType: "flood",
-      riskPercent: 58,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [34.75, -0.16],
-            [34.83, -0.16],
-            [34.83, -0.22],
-            [34.75, -0.22],
-            [34.75, -0.16]
-          ]
-        ]
-      }
-    }
-  ],
-  Mombasa: [
-    {
-      name: "Nyali",
-      riskType: "flood",
-      riskPercent: 61,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [39.67, -3.98],
-            [39.77, -3.98],
-            [39.77, -4.05],
-            [39.67, -4.05],
-            [39.67, -3.98]
-          ]
-        ]
-      }
-    },
-    {
-      name: "Likoni",
-      riskType: "flood",
-      riskPercent: 49,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [39.58, -4.09],
-            [39.66, -4.09],
-            [39.66, -4.16],
-            [39.58, -4.16],
-            [39.58, -4.09]
-          ]
-        ]
-      }
-    }
-  ],
-  Garissa: [
-    {
-      name: "Garissa Town",
-      riskType: "drought",
-      riskPercent: 56,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [39.62, -0.42],
-            [39.70, -0.42],
-            [39.70, -0.50],
-            [39.62, -0.50],
-            [39.62, -0.42]
-          ]
-        ]
-      }
-    },
-    {
-      name: "Dadaab",
-      riskType: "drought",
-      riskPercent: 63,
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [40.08, 0.05],
-            [40.18, 0.05],
-            [40.18, -0.05],
-            [40.08, -0.05],
-            [40.08, 0.05]
-          ]
-        ]
-      }
-    }
-  ]
-};
-
 const FILTERS = [
   { id: "all", label: "All" },
   { id: "drought", label: "Drought & Food Insecurity" },
@@ -290,7 +71,6 @@ const buildGeneratedRisk = (county) => {
   const seed = hashString(county);
   const riskType = seed % 2 === 0 ? "drought" : "flood";
   const riskPercent = 35 + (seed % 50);
-  const emoji = riskType === "drought" ? "🍲" : "🌊";
   const expectedEvent =
     riskType === "drought"
       ? "Below-average rainfall and declining vegetation health"
@@ -315,66 +95,32 @@ const buildGeneratedRisk = (county) => {
     expectedEvent,
     measurement,
     effects,
-    recommendations,
-    emoji
+    recommendations
   };
 };
 
 const COUNTY_RISK_DATA = kenyaCounties.features.map((feature) => {
   const countyName = feature.properties.name;
   const base = BASE_COUNTY_RISK[countyName];
-  const entry = base ? { ...base } : buildGeneratedRisk(countyName);
-  return { ...entry, emoji: entry.riskType === "drought" ? "🍲" : "🌊" };
-});
-
-const createEmojiIcon = (emoji) =>
-  L.divIcon({
-    html: `<span style="font-size:18px">${emoji}</span>`,
-    className: "emoji-icon",
-    iconSize: [20, 20]
-  });
-
-const getCentroid = (coordinates) => {
-  const [firstRing] = coordinates;
-  const total = firstRing.reduce(
-    (acc, [lng, lat]) => ({ lat: acc.lat + lat, lng: acc.lng + lng, count: acc.count + 1 }),
-    { lat: 0, lng: 0, count: 0 }
-  );
-  return [total.lat / total.count, total.lng / total.count];
-};
-
-const buildAreaGeoJson = (areas = []) => ({
-  type: "FeatureCollection",
-  features: areas.map((area) => ({
-    type: "Feature",
-    properties: {
-      name: area.name,
-      riskType: area.riskType,
-      riskPercent: area.riskPercent
-    },
-    geometry: area.geometry
-  }))
+  return base ? { ...base } : buildGeneratedRisk(countyName);
 });
 
 const formatFilterLabel = (riskType) =>
   riskType === "drought" ? "Drought & Food Insecurity" : "Flood & Extreme Weather";
 
-const fallbackResponse = (details, area) => {
-  const location = area ? `${area} (${details.county})` : `${details.county}`;
-  return `CrisisLens briefing for ${location}:
+const fallbackResponse = (details) => {
+  return `CrisisLens briefing for ${details.county}:
 
 - Severity: ${details.riskPercent}% affected (${details.riskType}).
 - Timing: impacts expected within 2-4 weeks, with escalation possible two weeks later.
-- Affected areas: ${area || "key wards and market centers"}.
 - Recommendations: ${details.recommendations}.
 - Food security: price volatility likely within 4-6 weeks; advise stocking staples and coordinating relief.`;
 };
 
 function App() {
-  // Track active filter and selected county/area for the details panel.
+  // Track active filter and selected county for the details panel.
   const [activeFilter, setActiveFilter] = useState("all");
   const [selectedCounty, setSelectedCounty] = useState(COUNTY_RISK_DATA[0].county);
-  const [selectedArea, setSelectedArea] = useState("");
   const [mapInstance, setMapInstance] = useState(null);
   const [question, setQuestion] = useState("");
   const [aiAnswer, setAiAnswer] = useState("");
@@ -397,19 +143,11 @@ function App() {
   const selectedDetails =
     COUNTY_RISK_DATA.find((entry) => entry.county === selectedCounty) || COUNTY_RISK_DATA[0];
 
-  const selectedAreas = AREA_RISK_DATA[selectedCounty] || [];
-  const areaGeoJson = buildAreaGeoJson(selectedAreas);
-
   const handleCountyClick = (countyName, bounds) => {
     setSelectedCounty(countyName);
-    setSelectedArea("");
     if (mapInstance && bounds) {
       mapInstance.fitBounds(bounds, { padding: [20, 20] });
     }
-  };
-
-  const handleAreaClick = (areaName) => {
-    setSelectedArea(areaName);
   };
 
   const geoJsonStyle = (feature) => {
@@ -429,19 +167,6 @@ function App() {
     };
   };
 
-  const areaStyle = (feature) => {
-    const { riskType, riskPercent } = feature.properties;
-    const matchesFilter = activeFilter === "all" || riskType === activeFilter;
-    const intensity = Math.min(0.85, Math.max(0.2, riskPercent / 100));
-
-    return {
-      fillColor: "#1d4ed8",
-      fillOpacity: matchesFilter ? intensity : 0.15,
-      color: matchesFilter ? "#0f172a" : "#94a3b8",
-      weight: 1
-    };
-  };
-
   const handleAskAI = async (event) => {
     event.preventDefault();
     setAiLoading(true);
@@ -453,7 +178,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           county: selectedDetails.county,
-          area: selectedArea,
+          area: "",
           risk_type: activeFilter,
           question: question || `Summarize risks for ${selectedDetails.county}.`
         })
@@ -466,7 +191,7 @@ function App() {
       const data = await response.json();
       setAiAnswer(data.response);
     } catch (error) {
-      setAiAnswer(fallbackResponse(selectedDetails, selectedArea));
+      setAiAnswer(fallbackResponse(selectedDetails));
       setAiError("Live AI response unavailable. Showing a local MVP summary instead.");
     } finally {
       setAiLoading(false);
@@ -480,8 +205,8 @@ function App() {
         <p className="tag">CRISISLENS MVP</p>
         <h1>Kenya early warning map for drought & flood risk.</h1>
         <p className="subhead">
-          Click a county to zoom in and review affected areas. Ask a question below to generate a
-          narrative briefing powered by the AI feedback panel.
+          Click a county to zoom in and review the county risk summary. This MVP uses placeholder
+          boundaries until official GeoJSON is supplied.
         </p>
       </header>
 
@@ -507,11 +232,10 @@ function App() {
                 const countyName = feature.properties.name;
                 const risk = riskByCounty[countyName];
                 const riskLabel = risk?.riskType === "flood" ? "Flood" : "Drought";
-                const emoji = risk?.emoji ?? "";
                 const percentage = risk ? `${risk.riskPercent}% affected` : "N/A";
 
                 layer.bindTooltip(
-                  `<strong>${countyName}</strong><br/>${emoji} ${riskLabel} · ${percentage}`,
+                  `<strong>${countyName}</strong><br/>${riskLabel} · ${percentage}`,
                   { sticky: true }
                 );
                 layer.on({
@@ -519,38 +243,6 @@ function App() {
                 });
               }}
             />
-            {/* Area/town shading inside the selected county */}
-            {selectedAreas.length > 0 && (
-              <GeoJSON
-                key={`${selectedCounty}-${activeFilter}`}
-                data={areaGeoJson}
-                style={areaStyle}
-                onEachFeature={(feature, layer) => {
-                  const { name, riskPercent } = feature.properties;
-                  layer.bindTooltip(`<strong>${name}</strong><br/>${riskPercent}% affected`, {
-                    sticky: true
-                  });
-                  layer.on({
-                    click: () => handleAreaClick(name)
-                  });
-                }}
-              />
-            )}
-            {/* Emoji markers for every county */}
-            {filteredCounties.map((entry) => {
-              const feature = kenyaCounties.features.find(
-                (item) => item.properties.name === entry.county
-              );
-              if (!feature) return null;
-              const centroid = getCentroid(feature.geometry.coordinates);
-              return (
-                <Marker
-                  key={entry.county}
-                  position={centroid}
-                  icon={createEmojiIcon(entry.emoji)}
-                />
-              );
-            })}
           </MapContainer>
         </div>
 
@@ -601,11 +293,6 @@ function App() {
             <p>{selectedDetails.recommendations}</p>
           </div>
         </div>
-        {selectedArea && (
-          <p className="area-highlight">
-            Selected area: <strong>{selectedArea}</strong>
-          </p>
-        )}
       </section>
 
       {/* Generative AI feedback panel */}
@@ -615,8 +302,8 @@ function App() {
           <span className="badge">AI Feedback</span>
         </div>
         <p className="ai-subhead">
-          Ask about a county or area to get a detailed, actionable briefing. This panel is wired to
-          the backend AI endpoint and falls back to local MVP guidance if the API is unavailable.
+          Ask about a county to get a detailed, actionable briefing. This panel is wired to the
+          backend AI endpoint and falls back to local MVP guidance if the API is unavailable.
         </p>
         <form className="ai-form" onSubmit={handleAskAI}>
           <input
