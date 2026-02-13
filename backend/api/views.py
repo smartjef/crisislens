@@ -19,6 +19,30 @@ from api.serializers import (
 from api.services import score_drought, score_flood
 
 
+def _fallback_ai_response(payload: dict) -> str:
+    """Provide an MVP fallback response when the AI service is unavailable."""
+    area = payload.get("area") or "countywide overview"
+    question = (payload.get("question") or "").lower()
+    wildlife_note = (
+        "- Wildlife: likely presence of grazing wildlife near water sources; "
+        "advise avoiding nighttime travel and securing food stores.\n"
+        if "wild" in question or "animal" in question
+        else ""
+    )
+
+    return (
+        f"CrisisLens fallback briefing for {payload['county']} ({payload['risk_type']}):\n"
+        f"- Focus area: {area}\n"
+        "- Timing: impacts expected within 2-4 weeks, with escalation possible two weeks later.\n"
+        "- Recommendations: relocate vulnerable livestock, prepare emergency supplies, and "
+        "coordinate local alerts.\n"
+        "- Food security: price volatility likely within 4-6 weeks; advise stocking staples and "
+        "monitoring supply chain disruptions.\n"
+        f"{wildlife_note}"
+        f"- User question noted: {payload.get('question', 'N/A')}"
+    )
+
+
 @api_view(["GET"])
 def health(request):
     return Response({"status": "ok"})
@@ -50,16 +74,21 @@ def ai_feedback(request):
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        return Response(
-            {"detail": "OPENAI_API_KEY is not configured on the server."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        fallback = _fallback_ai_response(payload)
+        output = AIFeedbackResponse({"response": fallback})
+        return Response(output.data, status=status.HTTP_200_OK)
 
     prompt = (
-        "You are CrisisLens, an early warning analyst. Provide a concise, actionable briefing for "
-        f"county: {payload['county']}, area: {payload.get('area', 'N/A')}, "
+        "You are CrisisLens, an early warning analyst. Answer the user's question directly and "
+        "clearly, and include any helpful context about the county/area if it improves the answer. "
+        f"County: {payload['county']}, area: {payload.get('area', 'N/A')}, "
         f"risk type: {payload['risk_type']}. "
-        "Include: affected towns/areas, % affected, timing, likely impacts, and recommendations. "
+        "If asked, estimate how many people may be affected, describe natural resources, explain "
+        "how resources can support crisis response, and provide a 1-month outlook. "
+        "Also include affected towns/areas, estimated % affected, timing (near-term and follow-on), "
+        "likely impacts, food insecurity implications (prices/supply chains), and clear "
+        "recommendations that are actionable for residents and responders. "
+        "Be creative but realistic, and respond in short bullet points. "
         f"User question: {payload['question']}"
     )
 
@@ -79,10 +108,9 @@ def ai_feedback(request):
     )
 
     if response.status_code != 200:
-        return Response(
-            {"detail": "Failed to fetch AI feedback."},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
+        fallback = _fallback_ai_response(payload)
+        output = AIFeedbackResponse({"response": fallback})
+        return Response(output.data, status=status.HTTP_200_OK)
 
     data = response.json()
     message = data["choices"][0]["message"]["content"]
