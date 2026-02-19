@@ -247,3 +247,58 @@ body {
     height: 360px;
   }
 }
+
+.focus-page {
+  gap: 24px;
+}
+
+.focus-hero {
+  background: linear-gradient(120deg, #0f172a, #1e3a8a);
+}
+
+.focus-section {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+
+.focus-map-caption {
+  margin: 8px 0 14px;
+  color: #475569;
+}
+
+.focus-map-wrapper {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #dbeafe;
+}
+
+.focus-map {
+  height: 340px;
+  width: 100%;
+}
+.focus-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.focus-card {
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.focus-card h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.focus-card ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
