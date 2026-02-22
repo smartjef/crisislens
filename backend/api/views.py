@@ -16,7 +16,7 @@ from api.serializers import (
     FloodPredictionRequest,
     FloodPredictionResponse,
 )
-from api.services import score_drought, score_flood
+from api.services import FLOOD_INDICATORS, score_drought, score_flood
 
 
 def _fallback_ai_response(payload: dict) -> str:
@@ -64,6 +64,36 @@ def flood_predict(request):
     payload = score_flood(**serializer.validated_data)
     response = FloodPredictionResponse(payload)
     return Response(response.data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def flood_scenario(request):
+    """Return pre-scored flood risk for a specific Lake Victoria sub-county.
+
+    Query params:
+        county (str): County name, e.g. "Kisumu"
+        area   (str): Sub-county name, e.g. "Nyando"
+
+    Returns the same shape as /api/flood/predict/ plus the raw indicator values
+    so the frontend can display them in the risk panel.
+    """
+    county = request.query_params.get("county", "").strip()
+    area = request.query_params.get("area", "").strip()
+    key = (county, area)
+
+    if key not in FLOOD_INDICATORS:
+        return Response(
+            {"error": f"No flood scenario data for county='{county}', area='{area}'."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    indicators = FLOOD_INDICATORS[key]
+    scored = score_flood(**indicators)
+    response_data = FloodPredictionResponse(scored)
+    return Response(
+        {**response_data.data, "indicators": indicators},
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(["POST"])

@@ -29,11 +29,29 @@ const BASE_COUNTY_RISK = {
   Kisumu: {
     county: "Kisumu",
     riskType: "flood",
-    riskPercent: 66,
-    expectedEvent: "Lake basin overflow risk",
-    measurement: "Soil moisture 0.82",
-    effects: "Flooding near shoreline settlements",
-    recommendations: "Prepare evacuation sites and deploy early warnings"
+    riskPercent: 71,
+    expectedEvent: "Nyando River overflow and Lake Victoria shoreline inundation",
+    measurement: "Rainfall accumulation 165mm · Soil moisture 0.87",
+    effects: "Nyando & Nyakach floodplains inundated, urban lake-edge flooding in Kisumu West",
+    recommendations: "Issue Nyando River level alerts, prepare evacuation sites along lake shore"
+  },
+  Siaya: {
+    county: "Siaya",
+    riskType: "flood",
+    riskPercent: 74,
+    expectedEvent: "Yala River overflow and Winam Gulf shoreline flooding",
+    measurement: "Rainfall accumulation 152mm · Soil moisture 0.83",
+    effects: "Agricultural land inundation in Rarieda and Bondo, community displacement",
+    recommendations: "Pre-position relief at Bondo town, issue Yala River level alerts"
+  },
+  "Homa Bay": {
+    county: "Homa Bay",
+    riskType: "flood",
+    riskPercent: 78,
+    expectedEvent: "Lake Victoria level rise with island and shoreline inundation",
+    measurement: "Rainfall accumulation 158mm · Soil moisture 0.85",
+    effects: "Suba South island communities cut off, crop loss in lake basin villages",
+    recommendations: "Deploy boats for Suba evacuation, alert Homa Bay town drainage teams"
   },
   Mombasa: {
     county: "Mombasa",
@@ -72,6 +90,36 @@ const RISK_EMOJI = {
   flood: "🌊",
   all: "✨"
 };
+
+// Lake Victoria focus counties — Kisumu, Siaya, Homa Bay.
+// Sub-county flood risk values derived from score_flood() using FLOOD_INDICATORS.
+const LAKE_VICTORIA_AREA_RISK = {
+  // Kisumu sub-counties
+  "Nyando":            { riskPercent: 82, riskType: "flood" },
+  "Nyakach":           { riskPercent: 76, riskType: "flood" },
+  "Kisumu West":       { riskPercent: 71, riskType: "flood" },
+  "Kisumu Central":    { riskPercent: 67, riskType: "flood" },
+  "Kisumu East":       { riskPercent: 63, riskType: "flood" },
+  "Seme":              { riskPercent: 65, riskType: "flood" },
+  "Muhoroni":          { riskPercent: 54, riskType: "flood" },
+  // Siaya sub-counties
+  "Rarieda":           { riskPercent: 74, riskType: "flood" },
+  "Bondo":             { riskPercent: 69, riskType: "flood" },
+  "Alego Usonga":      { riskPercent: 58, riskType: "flood" },
+  "Gem":               { riskPercent: 52, riskType: "flood" },
+  "Ugenya":            { riskPercent: 48, riskType: "flood" },
+  "Ugunja":            { riskPercent: 45, riskType: "flood" },
+  // Homa Bay sub-counties
+  "Suba South":        { riskPercent: 78, riskType: "flood" },
+  "Suba North":        { riskPercent: 73, riskType: "flood" },
+  "Karachuonyo":       { riskPercent: 66, riskType: "flood" },
+  "Homa Bay":          { riskPercent: 62, riskType: "flood" },
+  "Kabondo Kasipul":   { riskPercent: 58, riskType: "flood" },
+  "Kasipul":           { riskPercent: 55, riskType: "flood" },
+  "Rangwe":            { riskPercent: 50, riskType: "flood" },
+  "Ndhiwa":            { riskPercent: 46, riskType: "flood" }
+};
+const LAKE_VICTORIA_COUNTIES = new Set(["Kisumu", "Siaya", "Homa Bay"]);
 
 // Nairobi sub-county labels to include major town names in tooltips/UI.
 const NAIROBI_AREA_LABELS = {
@@ -152,9 +200,11 @@ const formatFilterLabel = (riskType) =>
 const formatEmoji = (riskType) => RISK_EMOJI[riskType] || "✨";
 
 const buildAreaRisk = (areaName, countyName) => {
-  const override = countyName === "Nairobi" ? NAIROBI_AREA_RISK[areaName] : null;
-  if (override) {
-    return { area: areaName, county: countyName, ...override };
+  if (countyName === "Nairobi" && NAIROBI_AREA_RISK[areaName]) {
+    return { area: areaName, county: countyName, ...NAIROBI_AREA_RISK[areaName] };
+  }
+  if (LAKE_VICTORIA_COUNTIES.has(countyName) && LAKE_VICTORIA_AREA_RISK[areaName]) {
+    return { area: areaName, county: countyName, ...LAKE_VICTORIA_AREA_RISK[areaName] };
   }
 
   const seed = hashString(`${countyName}-${areaName}`);
@@ -191,8 +241,9 @@ ${areaLine}
 
 function App() {
   // Track active filter, selections, and AI panel state.
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [selectedCounty, setSelectedCounty] = useState(COUNTY_RISK_DATA[0].county);
+  // Default to flood filter and Kisumu for the Lake Victoria focus demo.
+  const [activeFilter, setActiveFilter] = useState("flood");
+  const [selectedCounty, setSelectedCounty] = useState("Kisumu");
   const [selectedArea, setSelectedArea] = useState("");
   const [mapInstance, setMapInstance] = useState(null);
   const [question, setQuestion] = useState("");
@@ -484,6 +535,17 @@ function App() {
           <span className={`badge ${selectedDetails.riskType}`}>
             {formatEmoji(selectedDetails.riskType)} {formatFilterLabel(selectedDetails.riskType)}
           </span>
+          {selectedDetails.riskType === "flood" && (() => {
+            const leadTimeDays =
+              selectedDetails.riskPercent >= 75 ? 3
+              : selectedDetails.riskPercent >= 50 ? 5
+              : 7;
+            return (
+              <span className="badge lead-time">
+                ⏱ {leadTimeDays}-day alert
+              </span>
+            );
+          })()}
         </div>
         <div className="details-grid">
           <div>
