@@ -45,7 +45,7 @@ import {
   Phone,
   Building,
   Printer
-} from "./lucideShim";
+} from "lucide-react";
 
 const RISK_COLOR = (s) => (s >= 80 ? "#DC2626" : s >= 60 ? "#F59E0B" : s >= 40 ? "#FBBF24" : "#14B8A6");
 const RISK_LABEL = (s) => (s >= 80 ? "Critical" : s >= 60 ? "High" : s >= 40 ? "Moderate" : "Low");

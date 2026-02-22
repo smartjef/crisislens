@@ -2,10 +2,28 @@ import { useEffect, useMemo, useState } from "react";
 import { GeoJSON, MapContainer, TileLayer } from "react-leaflet";
 import kenyaCountiesRaw from "./data/ken_admin1.geojson?raw";
 import kenyaAreasRaw from "./data/ken_admin2.geojson?raw";
+import { Bot, Clock, Droplets, MapPin, TriangleAlert, Waves } from "lucide-react";
+
+// --- Focus scope: only these 3 Lake Victoria counties are shown on the map ---
+const FOCUS_COUNTY_NAMES = new Set(["Kisumu", "Siaya", "Homa Bay"]);
 
 // --- Static MVP risk data (swap with backend API calls when ready) ---
 const kenyaCounties = JSON.parse(kenyaCountiesRaw);
 const kenyaAreas = JSON.parse(kenyaAreasRaw);
+
+// GeoJSON slices containing only the 3 focus counties and their sub-counties.
+const focusCountiesGeoJSON = {
+  ...kenyaCounties,
+  features: kenyaCounties.features.filter(
+    (f) => FOCUS_COUNTY_NAMES.has(f.properties.adm1_name)
+  )
+};
+const focusAreasGeoJSON = {
+  ...kenyaAreas,
+  features: kenyaAreas.features.filter(
+    (f) => FOCUS_COUNTY_NAMES.has(f.properties.adm1_name)
+  )
+};
 // --- County-level baseline risk data (augmented with deterministic fallbacks) ---
 const BASE_COUNTY_RISK = {
   Turkana: {
@@ -73,23 +91,9 @@ const BASE_COUNTY_RISK = {
   }
 };
 
-const FILTERS = [
-  { id: "all", label: "All" },
-  { id: "drought", label: "Drought & Food Insecurity" },
-  { id: "flood", label: "Flood & Extreme Weather" }
-];
-
-const RISK_COLORS = {
-  drought: "#f97316",
-  flood: "#2563eb",
-  muted: "#cbd5f5"
-};
-
-const RISK_EMOJI = {
-  drought: "🌾",
-  flood: "🌊",
-  all: "✨"
-};
+// Flood fill palette — used only by getFloodFillColor interpolation (see below).
+// County outline colour for the dashed border layer.
+const COUNTY_BORDER = "#0f172a";
 
 // Lake Victoria focus counties — Kisumu, Siaya, Homa Bay.
 // Sub-county flood risk values derived from score_flood() using FLOOD_INDICATORS.
@@ -119,7 +123,8 @@ const LAKE_VICTORIA_AREA_RISK = {
   "Rangwe":            { riskPercent: 50, riskType: "flood" },
   "Ndhiwa":            { riskPercent: 46, riskType: "flood" }
 };
-const LAKE_VICTORIA_COUNTIES = new Set(["Kisumu", "Siaya", "Homa Bay"]);
+// FOCUS_COUNTY_NAMES is defined at the top of the file and used here for area lookups.
+const LAKE_VICTORIA_COUNTIES = FOCUS_COUNTY_NAMES;
 
 // Nairobi sub-county labels to include major town names in tooltips/UI.
 const NAIROBI_AREA_LABELS = {
@@ -188,7 +193,8 @@ const buildGeneratedRisk = (county) => {
   };
 };
 
-const COUNTY_RISK_DATA = kenyaCounties.features.map((feature) => {
+// Only build risk entries for the 3 focus counties — no fallback generation needed.
+const COUNTY_RISK_DATA = focusCountiesGeoJSON.features.map((feature) => {
   const countyName = feature.properties.adm1_name;
   const base = BASE_COUNTY_RISK[countyName];
   return base ? { ...base } : buildGeneratedRisk(countyName);
@@ -196,8 +202,6 @@ const COUNTY_RISK_DATA = kenyaCounties.features.map((feature) => {
 
 const formatFilterLabel = (riskType) =>
   riskType === "drought" ? "Drought & Food Insecurity" : "Flood & Extreme Weather";
-
-const formatEmoji = (riskType) => RISK_EMOJI[riskType] || "✨";
 
 const buildAreaRisk = (areaName, countyName) => {
   if (countyName === "Nairobi" && NAIROBI_AREA_RISK[areaName]) {
@@ -213,10 +217,15 @@ const buildAreaRisk = (areaName, countyName) => {
   return { area: areaName, county: countyName, riskType, riskPercent };
 };
 
-  const buildAreaFillOpacity = (riskPercent, matchesFilter) => {
-    if (!matchesFilter) return 0.12;
-    return Math.min(0.85, Math.max(0.2, riskPercent / 100));
-  };
+// Interpolate between pale blue (low risk) and deep navy (high risk).
+// Input range normalised: 40 % → t=0 (#bfdbfe), 90 % → t=1 (#1e3a8a)
+const getFloodFillColor = (riskPercent) => {
+  const t = Math.max(0, Math.min(1, (riskPercent - 40) / 50));
+  const r = Math.round(191 + (30 - 191) * t);   // 191 → 30
+  const g = Math.round(219 + (58 - 219) * t);   // 219 → 58
+  const b = Math.round(254 + (138 - 254) * t);  // 254 → 138
+  return `rgb(${r},${g},${b})`;
+};
 
 const formatAreaLabel = (countyName, areaName) => {
   if (countyName === "Nairobi" && NAIROBI_AREA_LABELS[areaName]) {
@@ -259,8 +268,9 @@ function App() {
     }, {});
   }, []);
 
+  // Only compute risk data for the 21 sub-counties within the 3 focus counties.
   const areaRiskData = useMemo(() => {
-    return kenyaAreas.features.map((feature) => {
+    return focusAreasGeoJSON.features.map((feature) => {
       const areaName = feature.properties.adm2_name;
       const countyName = feature.properties.adm1_name;
       return buildAreaRisk(areaName, countyName);
@@ -277,22 +287,12 @@ function App() {
   const selectedDetails =
     COUNTY_RISK_DATA.find((entry) => entry.county === selectedCounty) || COUNTY_RISK_DATA[0];
 
-  const selectedCountyAreas = useMemo(() => {
-    return kenyaAreas.features.filter(
-      (feature) => feature.properties.adm1_name === selectedCounty
-    );
-  }, [selectedCounty]);
-
+  // Sub-county names for the selected county — used for AI question matching.
   const selectedCountyAreaNames = useMemo(() => {
-    return selectedCountyAreas.map((feature) => feature.properties.adm2_name);
-  }, [selectedCountyAreas]);
-
-  const selectedCountyAreaData = useMemo(() => {
-    return {
-      type: "FeatureCollection",
-      features: selectedCountyAreas
-    };
-  }, [selectedCountyAreas]);
+    return focusAreasGeoJSON.features
+      .filter((f) => f.properties.adm1_name === selectedCounty)
+      .map((f) => f.properties.adm2_name);
+  }, [selectedCounty]);
 
   const topCountyAreas = useMemo(() => {
     return areaRiskData
@@ -324,38 +324,28 @@ function App() {
     }
   };
 
-  // Style counties based on overall risk and filter selection.
-  const geoJsonStyle = (feature) => {
-    const countyName = feature.properties.adm1_name;
-    const risk = riskByCounty[countyName];
-    const matchesFilter =
-      activeFilter === "all" || (risk && risk.riskType === activeFilter);
+  // County outlines — transparent fill so sub-county color shading shows through.
+  // A thick dashed border distinguishes county boundaries from sub-county borders.
+  const geoJsonStyle = () => ({
+    fillColor: "transparent",
+    fillOpacity: 0,
+    color: "#0f172a",
+    weight: 2.5,
+    dashArray: "6 4"
+  });
 
-    const fillColor = matchesFilter && risk ? RISK_COLORS[risk.riskType] : RISK_COLORS.muted;
-    const intensity = risk ? Math.min(0.85, Math.max(0.25, risk.riskPercent / 100)) : 0.15;
-
-    return {
-      fillColor,
-      fillOpacity: matchesFilter ? intensity : 0.2,
-      color: "#1f2937",
-      weight: 1
-    };
-  };
-
-  // Style areas/towns inside the selected county with blue intensity by severity.
+  // Sub-county polygons — color-interpolated from pale blue (low) to deep navy (high).
+  // This gives immediate visual contrast between high and low-risk sub-counties.
   const areaGeoJsonStyle = (feature) => {
     const areaName = feature.properties.adm2_name;
     const countyName = feature.properties.adm1_name;
     const risk = areaRiskByKey[`${countyName}::${areaName}`];
-    const matchesFilter =
-      activeFilter === "all" || (risk && risk.riskType === activeFilter);
-    const opacity = buildAreaFillOpacity(risk?.riskPercent || 20, matchesFilter);
 
     return {
-      fillColor: "#1d4ed8",
-      fillOpacity: opacity,
-      color: matchesFilter ? "#0f172a" : "#94a3b8",
-      weight: matchesFilter ? 1.5 : 1
+      fillColor: getFloodFillColor(risk?.riskPercent || 40),
+      fillOpacity: 0.78,
+      color: "#1e3a8a",
+      weight: 1
     };
   };
 
@@ -437,10 +427,10 @@ function App() {
       {/* Hero section */}
       <header className="hero">
         <p className="tag">CRISISLENS MVP</p>
-        <h1>Kenya early warning map for drought & flood risk.</h1>
+        <h1>Lake Victoria basin flood early warning — Kisumu, Siaya & Homa Bay.</h1>
         <p className="subhead">
-          Click a county to zoom in and review the county risk summary. Area-level hotspots inside
-          the county are shaded in blue, with darker tones indicating higher severity.
+          Click a county or sub-county to see flood risk details and get an AI briefing.
+          Darker blue indicates higher flood probability. All 21 sub-counties are visible.
         </p>
       </header>
 
@@ -448,8 +438,8 @@ function App() {
       <section className="map-section">
         <div className="map-wrapper">
           <MapContainer
-            center={[0.5, 37.8]}
-            zoom={6}
+            center={[-0.2, 34.6]}
+            zoom={9}
             scrollWheelZoom
             className="map"
             whenCreated={setMapInstance}
@@ -458,20 +448,19 @@ function App() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {/* County boundaries with risk coloring and tooltips */}
+            {/* County outlines for the 3 Lake Victoria focus counties */}
             <GeoJSON
               key={`counties-${activeFilter}`}
-              data={kenyaCounties}
+              data={focusCountiesGeoJSON}
               style={geoJsonStyle}
               onEachFeature={(feature, layer) => {
                 const countyName = feature.properties.adm1_name;
                 const risk = riskByCounty[countyName];
                 const riskLabel = risk?.riskType === "flood" ? "Flood" : "Drought";
                 const percentage = risk ? `${risk.riskPercent}% affected` : "N/A";
-                const emoji = risk ? formatEmoji(risk.riskType) : formatEmoji("all");
 
                 layer.bindTooltip(
-                  `<strong>${countyName}</strong><br/>${emoji} ${riskLabel} · ${percentage}`,
+                  `<strong>${countyName}</strong><br/>&#128167; ${riskLabel} &middot; ${percentage}`,
                   { sticky: true }
                 );
                 layer.on({
@@ -479,10 +468,10 @@ function App() {
                 });
               }}
             />
-            {/* Area/town boundaries inside the selected county */}
+            {/* All 21 sub-county polygons across the 3 focus counties — always visible */}
             <GeoJSON
-              key={`areas-${selectedCounty}-${activeFilter}`}
-              data={selectedCountyAreaData}
+              key={`areas-focus-${activeFilter}`}
+              data={focusAreasGeoJSON}
               style={areaGeoJsonStyle}
               onEachFeature={(feature, layer) => {
                 const areaName = feature.properties.adm2_name;
@@ -490,10 +479,9 @@ function App() {
                 const risk = areaRiskByKey[`${countyName}::${areaName}`];
                 const displayName = formatAreaLabel(countyName, areaName);
                 const percentage = risk ? `${risk.riskPercent}% affected` : "N/A";
-                const emoji = risk ? formatEmoji(risk.riskType) : formatEmoji("all");
 
                 layer.bindTooltip(
-                  `<strong>${displayName}</strong><br/>${emoji} ${percentage}`,
+                  `<strong>${displayName}</strong><br/>Flood risk: ${percentage}`,
                   { sticky: true }
                 );
                 layer.on({
@@ -507,22 +495,19 @@ function App() {
           </MapContainer>
         </div>
 
-        {/* Filter menu */}
+        {/* County selector — quick-switch between the 3 focus counties */}
         <div className="filters">
-          {FILTERS.map((filter) => (
+          {COUNTY_RISK_DATA.map((entry) => (
             <button
-              key={filter.id}
+              key={entry.county}
               type="button"
-              className={activeFilter === filter.id ? "filter active" : "filter"}
+              className={selectedCounty === entry.county ? "filter active" : "filter"}
               onClick={() => {
-                setActiveFilter(filter.id);
-                if (filter.id !== "all") {
-                  const next = COUNTY_RISK_DATA.find((entry) => entry.riskType === filter.id);
-                  if (next) setSelectedCounty(next.county);
-                }
+                setSelectedCounty(entry.county);
+                setSelectedArea("");
               }}
             >
-              {formatEmoji(filter.id)} {filter.label}
+              <Droplets className="w-3 h-3" /> {entry.county} · {entry.riskPercent}%
             </button>
           ))}
         </div>
@@ -533,7 +518,7 @@ function App() {
         <div className="details-header">
           <h2>{selectedDetails.county} County</h2>
           <span className={`badge ${selectedDetails.riskType}`}>
-            {formatEmoji(selectedDetails.riskType)} {formatFilterLabel(selectedDetails.riskType)}
+            <Waves className="w-3 h-3" /> {formatFilterLabel(selectedDetails.riskType)}
           </span>
           {selectedDetails.riskType === "flood" && (() => {
             const leadTimeDays =
@@ -542,7 +527,7 @@ function App() {
               : 7;
             return (
               <span className="badge lead-time">
-                ⏱ {leadTimeDays}-day alert
+                <Clock className="w-3 h-3" /> {leadTimeDays}-day alert
               </span>
             );
           })()}
@@ -578,9 +563,11 @@ function App() {
           <p className="label">Top affected areas</p>
           <ul>
             {topCountyAreas.map((entry) => (
-              <li key={`${entry.county}-${entry.area}`}>
-                {formatAreaLabel(entry.county, entry.area)} · {entry.riskPercent}% (
-                {formatEmoji(entry.riskType)})
+              <li key={`${entry.county}-${entry.area}`} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                {entry.riskPercent >= 75
+                  ? <TriangleAlert className="w-3 h-3" style={{ color: "#dc2626", flexShrink: 0 }} />
+                  : <Droplets className="w-3 h-3" style={{ color: "#2563eb", flexShrink: 0 }} />}
+                {formatAreaLabel(entry.county, entry.area)} · {entry.riskPercent}%
               </li>
             ))}
           </ul>
@@ -591,7 +578,9 @@ function App() {
       <section className="ai-panel">
         <div className="details-header">
           <h2>Ask CrisisLens</h2>
-          <span className="badge">AI Feedback</span>
+          <span className="badge">
+            <Bot className="w-3 h-3" /> AI Analyst
+          </span>
         </div>
         <p className="ai-subhead">
           Ask about a county or area to get a detailed, actionable briefing. This panel is wired
