@@ -11,15 +11,11 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
+  ResponsiveContainer
 } from "recharts";
 import {
   AlertTriangle,
   MapPin,
-  Users,
   FileText,
   Settings,
   BarChart3,
@@ -37,13 +33,6 @@ import {
   Clock,
   X,
   Save,
-  Shield,
-  User,
-  Globe,
-  Database,
-  Mail,
-  Phone,
-  Building,
   Printer
 } from "lucide-react";
 
