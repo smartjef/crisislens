@@ -15,7 +15,7 @@ import {
   PieChart,
   Pie,
   Cell
-} from "./rechartsShim";
+} from "recharts";
 import {
   AlertTriangle,
   MapPin,
