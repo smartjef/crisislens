@@ -11,15 +11,11 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from "./rechartsShim";
+  ResponsiveContainer
+} from "recharts";
 import {
   AlertTriangle,
   MapPin,
-  Users,
   FileText,
   Settings,
   BarChart3,
@@ -37,15 +33,8 @@ import {
   Clock,
   X,
   Save,
-  Shield,
-  User,
-  Globe,
-  Database,
-  Mail,
-  Phone,
-  Building,
   Printer
-} from "./lucideShim";
+} from "lucide-react";
 
 const RISK_COLOR = (s) => (s >= 80 ? "#DC2626" : s >= 60 ? "#F59E0B" : s >= 40 ? "#FBBF24" : "#14B8A6");
 const RISK_LABEL = (s) => (s >= 80 ? "Critical" : s >= 60 ? "High" : s >= 40 ? "Moderate" : "Low");
@@ -57,9 +46,9 @@ const droughtCounties = [
   { name: "Garissa", risk: 71, affected: 389000, population: 543000 }
 ];
 const floodCounties = [
-  { name: "Budalang'i", risk: 78, affected: 122375, population: 156890 },
-  { name: "Tana River", risk: 62, affected: 198000, population: 315000 },
-  { name: "Garissa", risk: 45, affected: 87000, population: 543000 }
+  { name: "Homa Bay", risk: 78, affected: 882000,  population: 1131950 },
+  { name: "Siaya",    risk: 74, affected: 735000,  population: 993183  },
+  { name: "Kisumu",   risk: 71, affected: 690000,  population: 1155574 }
 ];
 const droughtTrend = [
   { month: "Aug", turkana: 45, national: 35 },
@@ -72,9 +61,9 @@ const droughtTrend = [
 ];
 
 const alerts = [
-  { id: 1, county: "Turkana", severity: "critical", type: "Drought", message: "Vegetation stress exceeding historical norms.", time: "2 hrs ago", ack: false },
-  { id: 2, county: "Budalang'i", severity: "critical", type: "Flood", message: "River Nzoia at 94% capacity.", time: "30 min ago", ack: false },
-  { id: 3, county: "Wajir", severity: "high", type: "Drought", message: "Rainfall deficit 41% below average.", time: "5 hrs ago", ack: false }
+  { id: 1, county: "Kisumu",   severity: "critical", type: "Flood", message: "Nyando River at 91% capacity. Evacuation alert active for Nyando and Nyakach.", time: "45 min ago", ack: false },
+  { id: 2, county: "Homa Bay", severity: "critical", type: "Flood", message: "Suba South communities reporting lake level rise of 0.8m. Rusinga Island access road flooded.", time: "2 hrs ago", ack: false },
+  { id: 3, county: "Siaya",    severity: "high",     type: "Flood", message: "Rarieda shoreline flooding confirmed. Yala River at 78% capacity — monitor closely.", time: "4 hrs ago", ack: false }
 ];
 
 const reports = [
@@ -147,7 +136,7 @@ function CountyDetail({ module, selectedCounty }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 inline-flex items-center gap-2"><MapPin className="w-4 h-4" />{county.name}</h2>
-          <p className="text-sm text-gray-500">Lead time: 4-6 weeks</p>
+          <p className="text-sm text-gray-500">Lead time: {module === "flood" ? "3–5 days" : "4–6 weeks"}</p>
         </div>
         <div className="flex gap-2">
           <button className="px-4 py-2 border rounded text-sm inline-flex items-center gap-1"><Filter className="w-4 h-4" />Filter</button>
@@ -237,8 +226,8 @@ function SettingsView() {
 
 export default function OperationsDashboard() {
   const [view, setView] = useState("national");
-  const [module, setModule] = useState("drought");
-  const [selectedCounty, setSelectedCounty] = useState("turkana");
+  const [module, setModule] = useState("flood");
+  const [selectedCounty, setSelectedCounty] = useState("kisumu");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const unread = alerts.filter((a) => !a.ack).length;
