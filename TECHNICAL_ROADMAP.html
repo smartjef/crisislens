@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CrisisLens — Technical Roadmap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Variables ─────────────────────────────────────── */
+    :root {
+      --flood:   #0891b2;
+      --flood-d: #0e7490;
+      --navy:    #0c4a6e;
+      --navy-d:  #082f49;
+      --text:    #0f172a;
+      --muted:   #475569;
+      --border:  #e2e8f0;
+      --bg:      #f8fafc;
+      --white:   #ffffff;
+      --danger:  #ef4444;
+      --warn:    #f59e0b;
+      --success: #10b981;
+    }
+
+    /* ── Reset ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 10.5pt; }
+    body {
+      font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+      color: var(--text);
+      background: var(--white);
+      line-height: 1.6;
+    }
+
+    /* ── Print setup ───────────────────────────────────── */
+    @page { size: A4; margin: 18mm 18mm 16mm 18mm; }
+    @media print {
+      body { font-size: 9.5pt; }
+      .cover { page-break-after: always; }
+      .page-break { page-break-before: always; }
+      .no-break { page-break-inside: avoid; }
+      a { color: inherit !important; text-decoration: none !important; }
+    }
+
+    /* ── Cover page ────────────────────────────────────── */
+    .cover {
+      min-height: 100vh;
+      background: linear-gradient(150deg, var(--navy-d) 0%, var(--navy) 45%, var(--flood) 100%);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 60px 56px 52px;
+    }
+    .cover-top { display: flex; flex-direction: column; gap: 6px; }
+    .cover-logo {
+      font-family: 'IBM Plex Sans Condensed', ui-sans-serif, sans-serif;
+      font-size: 13pt;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.85;
+    }
+    .cover-wave { font-size: 28pt; margin-top: 4px; }
+    .cover-title {
+      font-size: 36pt;
+      font-weight: 700;
+      line-height: 1.15;
+      margin-top: 28px;
+      max-width: 480px;
+    }
+    .cover-subtitle {
+      font-size: 14pt;
+      font-weight: 500;
+      margin-top: 12px;
+      opacity: 0.9;
+    }
+    .cover-tagline {
+      font-size: 10.5pt;
+      opacity: 0.7;
+      margin-top: 6px;
+      font-style: italic;
+    }
+    .cover-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 32px;
+      margin-top: 40px;
+      font-size: 9.5pt;
+      opacity: 0.8;
+    }
+    .cover-meta-item { display: flex; flex-direction: column; gap: 2px; }
+    .cover-meta-label { text-transform: uppercase; letter-spacing: 0.1em; font-size: 7.5pt; opacity: 0.7; }
+    .cover-meta-value { font-weight: 600; }
+    .cover-bottom {
+      font-size: 8.5pt;
+      opacity: 0.55;
+      border-top: 1px solid rgba(255,255,255,0.25);
+      padding-top: 18px;
+    }
+
+    /* ── Page content wrapper ──────────────────────────── */
+    .content { max-width: 680px; margin: 0 auto; padding: 40px 20px; }
+    @media print { .content { padding: 0; max-width: 100%; } }
+
+    /* ── Section headings ──────────────────────────────── */
+    .section-label {
+      font-family: 'IBM Plex Sans Condensed', ui-sans-serif, sans-serif;
+      font-size: 7.5pt;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--flood);
+      margin-bottom: 6px;
+    }
+    h2 {
+      font-size: 18pt;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 14px;
+      border-bottom: 2.5px solid var(--flood);
+      padding-bottom: 8px;
+    }
+    h3 {
+      font-size: 12pt;
+      font-weight: 600;
+      color: var(--navy);
+      margin: 22px 0 8px;
+    }
+    h4 {
+      font-size: 10pt;
+      font-weight: 600;
+      color: var(--text);
+      margin: 14px 0 6px;
+    }
+    p { margin-bottom: 10px; color: var(--text); }
+    ul { padding-left: 18px; margin-bottom: 10px; }
+    ul li { margin-bottom: 4px; }
+
+    /* ── Section container ─────────────────────────────── */
+    .section { margin-bottom: 36px; }
+
+    /* ── Tables ────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin: 12px 0;
+    }
+    thead tr { background: var(--navy); color: white; }
+    thead th {
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 8.5pt;
+      letter-spacing: 0.03em;
+    }
+    tbody tr:nth-child(even) { background: var(--bg); }
+    tbody tr:nth-child(odd) { background: var(--white); }
+    tbody td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* ── Architecture diagram ──────────────────────────── */
+    .arch-diagram {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 8.5pt;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--flood);
+      border-radius: 6px;
+      padding: 16px 20px;
+      line-height: 1.75;
+      white-space: pre;
+      overflow-x: auto;
+      color: var(--text);
+    }
+
+    /* ── Milestone cards ───────────────────────────────── */
+    .milestone-grid { display: flex; flex-direction: column; gap: 18px; margin-top: 14px; }
+    .milestone-card {
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--flood);
+      border-radius: 8px;
+      padding: 16px 20px;
+      background: var(--white);
+    }
+    .milestone-card.m2 { border-left-color: #2563eb; }
+    .milestone-card.m3 { border-left-color: #7c3aed; }
+    .milestone-card.m4 { border-left-color: #db2777; }
+    .milestone-card.m5 { border-left-color: #059669; }
+    .milestone-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .milestone-title {
+      font-weight: 700;
+      font-size: 11pt;
+      color: var(--navy);
+    }
+    .milestone-days {
+      font-size: 8pt;
+      font-weight: 600;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 2px 10px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .milestone-items {
+      list-style: none;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 20px;
+      font-size: 9pt;
+    }
+    .milestone-items li::before { content: "→ "; color: var(--flood); font-weight: 700; }
+    .milestone-items li { color: var(--muted); }
+    .deliverable {
+      margin-top: 10px;
+      font-size: 8.5pt;
+      font-weight: 600;
+      color: var(--flood-d);
+      background: rgba(8, 145, 178, 0.07);
+      border-radius: 4px;
+      padding: 5px 10px;
+    }
+    .deliverable::before { content: "✓ Deliverable: "; }
+
+    /* ── Stat pills ────────────────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 14px 0;
+    }
+    .stat-pill {
+      background: var(--navy);
+      color: white;
+      border-radius: 8px;
+      padding: 10px 18px;
+      text-align: center;
+      flex: 1;
+      min-width: 100px;
+    }
+    .stat-number { font-size: 18pt; font-weight: 700; display: block; }
+    .stat-label { font-size: 7.5pt; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.1em; }
+
+    /* ── Role badges ───────────────────────────────────── */
+    .role-badge {
+      display: inline-block;
+      font-size: 7.5pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-right: 4px;
+    }
+    .role-badge.ops    { background: rgba(8,145,178,0.12); color: #0e7490; }
+    .role-badge.county { background: rgba(16,185,129,0.12); color: #065f46; }
+    .role-badge.resp   { background: rgba(245,158,11,0.15); color: #92400e; }
+    .role-badge.analyst{ background: rgba(124,58,237,0.12); color: #5b21b6; }
+    .role-badge.admin  { background: rgba(239,68,68,0.12);  color: #991b1b; }
+
+    /* ── Risk badges ───────────────────────────────────── */
+    .risk-high   { color: #dc2626; font-weight: 700; }
+    .risk-med    { color: #d97706; font-weight: 700; }
+    .risk-low    { color: #0891b2; font-weight: 700; }
+
+    /* ── Info box ──────────────────────────────────────── */
+    .info-box {
+      background: rgba(8,145,178,0.06);
+      border: 1px solid rgba(8,145,178,0.2);
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-size: 9.5pt;
+      margin: 12px 0;
+    }
+    .info-box strong { color: var(--flood-d); }
+
+    /* ── Post-MVP items ────────────────────────────────── */
+    .postmvp-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .postmvp-item {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 9pt;
+    }
+    .postmvp-item strong { color: var(--navy); display: block; margin-bottom: 3px; }
+    .postmvp-item span { color: var(--muted); }
+
+    /* ── Footer ────────────────────────────────────────── */
+    .doc-footer {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 8pt;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- COVER PAGE                                            -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-top">
+    <div class="cover-logo">🌊 CrisisLens</div>
+    <div class="cover-title">Technical Roadmap</div>
+    <div class="cover-subtitle">MVP Development Plan — 14-Day Sprint</div>
+    <div class="cover-tagline">National Predictive Risk &amp; Early Warning System</div>
+
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Version</span>
+        <span class="cover-meta-value">1.0</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Date</span>
+        <span class="cover-meta-value">February 2026</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Repository</span>
+        <span class="cover-meta-value">github.com/OGURI254/CrisisLens</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Focus Area</span>
+        <span class="cover-meta-value">Lake Victoria Basin, Kenya</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Crisis Type</span>
+        <span class="cover-meta-value">Flooding — 3–7 day early warning</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Counties</span>
+        <span class="cover-meta-value">Kisumu · Siaya · Homa Bay</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-bottom">
+    CrisisLens &mdash; AI-powered flood intelligence platform for Kenya's Lake Victoria basin.
+    Submitted for incubation program review. Confidential &amp; proprietary.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- DOCUMENT BODY                                         -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="content">
+
+  <!-- 1. Executive Summary -->
+  <div class="section no-break">
+    <div class="section-label">Section 1</div>
+    <h2>Executive Summary</h2>
+
+    <p>
+      <strong>CrisisLens</strong> is a national predictive risk and early warning platform that transforms
+      fragmented environmental data into timely, actionable flood intelligence. By integrating rainfall
+      accumulation, soil moisture, terrain elevation, and historical flood occurrence, CrisisLens provides
+      <strong>3 to 7 days of advance warning</strong> before flood peaks — enabling governments, emergency
+      responders, and county authorities to act preventively rather than reactively.
+    </p>
+    <p>
+      The MVP targets Kenya's Lake Victoria basin, covering <strong>3 counties</strong> (Kisumu, Siaya,
+      and Homa Bay), <strong>21 sub-counties</strong>, and a combined population of <strong>3.28 million people</strong>.
+      The platform delivers role-specific dashboards, an AI-powered analyst briefing panel, a live GIS
+      risk heatmap, and a full alert management workflow — all accessible through a web application backed
+      by a production-ready REST API.
+    </p>
+
+    <div class="stats-row">
+      <div class="stat-pill">
+        <span class="stat-number">3.28M</span>
+        <span class="stat-label">People covered</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-number">21</span>
+        <span class="stat-label">Sub-counties mapped</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-number">3–7</span>
+        <span class="stat-label">Day lead time</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-number">5</span>
+        <span class="stat-label">User roles</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-number">14</span>
+        <span class="stat-label">Day build sprint</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Problem Statement -->
+  <div class="section no-break">
+    <div class="section-label">Section 2</div>
+    <h2>Problem Statement</h2>
+
+    <p>
+      Flood disasters in Kenya's Lake Victoria basin follow a recurring pattern: early signals appear
+      across multiple agencies, remain siloed, and decision-makers respond only after communities are
+      already displaced. This systemic fragmentation turns predictable events into avoidable catastrophes.
+    </p>
+
+    <h3>The Evidence</h3>
+    <ul>
+      <li><strong>April–May 2024:</strong> Flooding displaced over 40,000 people across Kisumu, Siaya, and Homa Bay. Nyando River overflowed; Lake Victoria rose above seasonal average; Suba South island communities were cut off.</li>
+      <li><strong>Data exists but is siloed:</strong> The Kenya Meteorological Department (KMD) collects rainfall data; OCHA maintains historical displacement records; county governments have local knowledge — but none of these systems communicate in real time.</li>
+      <li><strong>Response is reactive:</strong> Evacuation orders, relief pre-positioning, and emergency declarations routinely happen after peak flooding — when damage is irreversible.</li>
+      <li><strong>No unified decision-support tool:</strong> County officers, national operations centres, and responders work from different datasets, different timelines, and different interfaces.</li>
+    </ul>
+
+    <div class="info-box">
+      <strong>The CrisisLens insight:</strong> The data to predict these floods already exists.
+      The problem is fragmentation — not data scarcity. CrisisLens connects the signals.
+    </div>
+  </div>
+
+  <!-- 3. Solution Overview -->
+  <div class="section page-break">
+    <div class="section-label">Section 3</div>
+    <h2>Solution Overview</h2>
+
+    <p>
+      CrisisLens functions as a national "risk radar" — continuously aggregating environmental indicators,
+      running a sigmoid-based flood probability model, and distributing role-specific intelligence to the
+      right decision-makers at the right time.
+    </p>
+
+    <h3>Core Capabilities</h3>
+    <table>
+      <thead>
+        <tr><th>Capability</th><th>How it works</th><th>Output</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Flood Risk Scoring</strong></td>
+          <td>Sigmoid model on 4 inputs: rainfall (mm), soil moisture (0–1), elevation (m), past flood history</td>
+          <td>Probability 0–100%, category (Low/Moderate/High), lead time 3–7 days</td>
+        </tr>
+        <tr>
+          <td><strong>GIS Heatmap</strong></td>
+          <td>Sub-county polygons from Kenya GeoJSON, colour-interpolated by flood probability</td>
+          <td>Visual risk heatmap with click-to-drill sub-county detail panel</td>
+        </tr>
+        <tr>
+          <td><strong>Role-Based Dashboards</strong></td>
+          <td>JWT role claims route each user to their specific dashboard (4 dashboard types)</td>
+          <td>KPI cards, risk tables, trend charts, alerts feeds tailored per role</td>
+        </tr>
+        <tr>
+          <td><strong>AI Analyst Panel</strong></td>
+          <td>GPT-4o-mini with role-aware prompts, county/sub-county context, and conversation history</td>
+          <td>Natural-language risk briefings, evacuation guidance, 1-week outlooks</td>
+        </tr>
+        <tr>
+          <td><strong>Alerts Workflow</strong></td>
+          <td>County officers create alerts; responders acknowledge; officers resolve. AuditLog tracks all.</td>
+          <td>Full lifecycle: Active → Acknowledged → Resolved with timestamps</td>
+        </tr>
+        <tr>
+          <td><strong>Scenario Simulation</strong></td>
+          <td>Analysts adjust rainfall/moisture/elevation sliders and POST to scoring API</td>
+          <td>What-if probability with delta comparison vs current observed prediction</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 4. MVP Scope -->
+  <div class="section no-break">
+    <div class="section-label">Section 4</div>
+    <h2>MVP Scope &amp; Focus Area</h2>
+
+    <table>
+      <thead>
+        <tr><th>Dimension</th><th>Decision</th><th>Rationale</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Crisis type</strong></td>
+          <td>Flooding only (not drought)</td>
+          <td>3–7 day lead time makes it immediately actionable; four measurable inputs; dramatic visual on map</td>
+        </tr>
+        <tr>
+          <td><strong>Geography</strong></td>
+          <td>Kisumu, Siaya, Homa Bay</td>
+          <td>3.28M people; all three border Lake Victoria; compact 158×131 km area fits a single map viewport</td>
+        </tr>
+        <tr>
+          <td><strong>Sub-counties</strong></td>
+          <td>21 sub-counties; Nyando (82%), Suba South (78%), Rarieda (74%) as hotspots</td>
+          <td>All drain into Lake Victoria; highest documented displacement in 2018, 2020, 2024 floods</td>
+        </tr>
+        <tr>
+          <td><strong>Data inputs</strong></td>
+          <td>Rainfall (KMD), soil moisture (CHIRPS/Sentinel-1), elevation (SRTM 30m), past occurrence (OCHA)</td>
+          <td>Publicly available; reproducible; representative 2024 long-rain season values hardcoded for MVP</td>
+        </tr>
+        <tr>
+          <td><strong>Lead time</strong></td>
+          <td>3–7 days</td>
+          <td>Sufficient window for evacuation orders, relief pre-positioning, and transport logistics</td>
+        </tr>
+        <tr>
+          <td><strong>User roles</strong></td>
+          <td>5 roles (national ops, county officer, responder, analyst, super admin)</td>
+          <td>Matches actual stakeholder structure: national Disaster Operations Centre, county governments, response teams</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 5. Technical Architecture -->
+  <div class="section page-break">
+    <div class="section-label">Section 5</div>
+    <h2>Technical Architecture</h2>
+
+    <pre class="arch-diagram">
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │  REACT FRONTEND   (Vite · Tailwind CSS v3 · IBM Plex Sans)          │
+  │                                                                      │
+  │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────┐  │
+  │  │  Leaflet Map    │  │ Role Dashboards  │  │  AI Chat Panel     │  │
+  │  │  GeoJSON risk   │  │ (4 distinct UIs) │  │  GPT-4o-mini       │  │
+  │  │  heatmap        │  │                  │  │  + scenario sim    │  │
+  │  └─────────────────┘  └──────────────────┘  └────────────────────┘  │
+  │                                                                      │
+  │  Zustand (auth + alert state) · React Router v6 · Axios + JWT       │
+  └────────────────────────────┬─────────────────────────────────────────┘
+                               │  HTTPS / REST  (JWT Bearer token)
+  ┌────────────────────────────▼─────────────────────────────────────────┐
+  │  DJANGO 5 BACKEND   (DRF · SimpleJWT · Gunicorn)                    │
+  │                                                                      │
+  │  /api/auth/      →  Login · Refresh · Logout · Me                   │
+  │  /api/counties/  →  Flood risk aggregation per county               │
+  │  /api/sub-counties/ → Sub-county predictions + observations         │
+  │  /api/alerts/    →  CRUD · Acknowledge · Resolve (role-gated)       │
+  │  /api/ai/        →  OpenAI integration · rate limiting              │
+  │  /api/reports/   →  Generate · Download flood bulletins             │
+  │                                                                      │
+  │  Role permissions · AuditLog middleware · Pagination                │
+  └────────────────────────────┬─────────────────────────────────────────┘
+                               │
+  ┌────────────────────────────▼─────────────────────────────────────────┐
+  │  POSTGRESQL 16                                                       │
+  │                                                                      │
+  │  County · SubCounty · FloodObservation · FloodPrediction            │
+  │  FloodAlert · AuditLog · User (custom, with role + county FK)       │
+  └──────────────────────────────────────────────────────────────────────┘
+                               │
+  ┌────────────────────────────▼─────────────────────────────────────────┐
+  │  DOCKER COMPOSE (production-equivalent local environment)            │
+  │  db (postgres:16) · backend (gunicorn:8000) · frontend (nginx:80)   │
+  └──────────────────────────────────────────────────────────────────────┘</pre>
+
+    <h3>Flood Scoring Model</h3>
+    <p>
+      The core prediction engine applies a weighted sigmoid function to four observable flood indicators.
+      This approach is interpretable, fast, and produces well-calibrated probabilities without requiring
+      historical training data — making it ideal for an MVP with hardcoded representative values.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Input</th><th>Weight</th><th>Data Source</th><th>Example (Nyando)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Rainfall accumulation (mm)</td><td>1.2×</td><td>Kenya Met. Dept. (KMD)</td><td>165 mm</td></tr>
+        <tr><td>Soil moisture (0–1)</td><td>1.4×</td><td>CHIRPS / Sentinel-1 SAR</td><td>0.87</td></tr>
+        <tr><td>Elevation penalty (m AMSL)</td><td>1.1×</td><td>SRTM 30m DEM</td><td>1,134 m → penalty 0.43</td></tr>
+        <tr><td>Past flood occurrence</td><td>+0.30</td><td>OCHA historical data</td><td>True → +0.30</td></tr>
+        <tr><td colspan="3"><strong>Output (sigmoid)</strong></td><td><strong class="risk-high">82% · High · 3-day lead</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 6. Technology Stack -->
+  <div class="section no-break">
+    <div class="section-label">Section 6</div>
+    <h2>Technology Stack</h2>
+
+    <table>
+      <thead>
+        <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Frontend framework</td><td>React 18 + Vite</td><td>SPA, fast HMR in dev, optimised production build</td></tr>
+        <tr><td>Styling</td><td>Tailwind CSS v3 + IBM Plex Sans</td><td>Utility-first design system; dark mode via class strategy</td></tr>
+        <tr><td>Global state</td><td>Zustand</td><td>Auth context + unread alert count; lightweight, no boilerplate</td></tr>
+        <tr><td>Routing</td><td>React Router v6</td><td>Protected routes with PrivateRoute + role guards</td></tr>
+        <tr><td>HTTP client</td><td>Axios + JWT interceptor</td><td>Auto-attach Bearer token; silent refresh on 401</td></tr>
+        <tr><td>Maps</td><td>React Leaflet + Kenya GeoJSON</td><td>Sub-county risk heatmap (admin1 + admin2 boundaries)</td></tr>
+        <tr><td>Charts</td><td>Recharts</td><td>Flood trend AreaChart on national ops dashboard</td></tr>
+        <tr><td>Icons</td><td>Lucide React</td><td>Consistent, tree-shakable SVG icon set</td></tr>
+        <tr><td>Backend</td><td>Django 5 + Django REST Framework</td><td>REST API, ORM, admin, management commands</td></tr>
+        <tr><td>Authentication</td><td>djangorestframework-simplejwt</td><td>Access tokens (15 min) + refresh tokens (7 days) + blacklist</td></tr>
+        <tr><td>Database</td><td>PostgreSQL 16</td><td>Production-grade relational DB; no SQLite in any environment</td></tr>
+        <tr><td>AI</td><td>OpenAI GPT-4o-mini</td><td>Role-aware analyst briefings; hardcoded fallback if no API key</td></tr>
+        <tr><td>Config</td><td>django-environ</td><td>All secrets in .env; .env.example committed for onboarding</td></tr>
+        <tr><td>Deployment</td><td>Docker Compose + Gunicorn + Nginx</td><td>One-command local full-stack; production-equivalent setup</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 7. User Roles -->
+  <div class="section page-break">
+    <div class="section-label">Section 7</div>
+    <h2>User Roles &amp; Access Control</h2>
+
+    <p>
+      Every endpoint is protected with JWT authentication. Role claims are embedded in the access token
+      and enforced by DRF permission classes on each view. <code>county_officer</code> users are
+      additionally scoped to their assigned county at the database query level.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Role</th><th>Real-world user</th><th>Dashboard</th><th>Key capabilities</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="role-badge ops">National Ops</span></td>
+          <td>National Disaster Operations Centre staff</td>
+          <td>National Dashboard</td>
+          <td>All counties, all alerts, KPI overview, trend charts, create alerts for any county</td>
+        </tr>
+        <tr>
+          <td><span class="role-badge county">County Officer</span></td>
+          <td>County Government crisis coordinator</td>
+          <td>County Dashboard</td>
+          <td>Own county only, sub-county risk table, recommended actions, create + resolve alerts</td>
+        </tr>
+        <tr>
+          <td><span class="role-badge resp">Responder</span></td>
+          <td>Emergency Response Team member</td>
+          <td>Responder Dashboard</td>
+          <td>Active alerts feed, one-click acknowledge, read-only risk map, auto-refresh every 60 s</td>
+        </tr>
+        <tr>
+          <td><span class="role-badge analyst">Analyst</span></td>
+          <td>Data analyst / research officer</td>
+          <td>Analyst Dashboard</td>
+          <td>AI briefing chat, scenario simulation (what-if), prediction history, reports generation</td>
+        </tr>
+        <tr>
+          <td><span class="role-badge admin">Super Admin</span></td>
+          <td>System administrator</td>
+          <td>Django Admin + all</td>
+          <td>User management, all models, regenerate predictions, audit log, admin actions</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Demo Accounts (seeded by management command)</h3>
+    <table>
+      <thead>
+        <tr><th>Email</th><th>Role</th><th>County</th><th>Password</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>admin@crisislens.ke</td><td><span class="role-badge admin">Super Admin</span></td><td>—</td><td>CrisisLens2024!</td></tr>
+        <tr><td>ops@crisislens.ke</td><td><span class="role-badge ops">National Ops</span></td><td>—</td><td>CrisisLens2024!</td></tr>
+        <tr><td>officer@kisumu.ke</td><td><span class="role-badge county">County Officer</span></td><td>Kisumu</td><td>CrisisLens2024!</td></tr>
+        <tr><td>responder@siaya.ke</td><td><span class="role-badge resp">Responder</span></td><td>Siaya</td><td>CrisisLens2024!</td></tr>
+        <tr><td>analyst@crisislens.ke</td><td><span class="role-badge analyst">Analyst</span></td><td>—</td><td>CrisisLens2024!</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 8. Development Milestones -->
+  <div class="section page-break">
+    <div class="section-label">Section 8</div>
+    <h2>Development Milestones</h2>
+
+    <p>
+      The MVP is structured into five sequential milestones spanning 14 days.
+      Milestones overlap slightly by design — backend and frontend work proceeds in parallel
+      from Day 2 onward. All 47 GitHub issues are tracked at
+      <strong>github.com/smartjef/crisislens/milestones</strong>.
+    </p>
+
+    <div class="milestone-grid">
+
+      <div class="milestone-card m1 no-break">
+        <div class="milestone-header">
+          <div class="milestone-title">M1 &mdash; Foundation</div>
+          <div class="milestone-days">Days 1–3 &nbsp;·&nbsp; 5 issues</div>
+        </div>
+        <ul class="milestone-items">
+          <li>Tailwind CSS v3 + IBM Plex Sans design tokens</li>
+          <li>Core component library (7 components)</li>
+          <li>App shell: sidebar + topbar + dark mode toggle</li>
+          <li>React Router v6 with PrivateRoute + role guards</li>
+        </ul>
+        <div class="deliverable">Navigable app shell with all page stubs; dark mode working; IBM Plex Sans rendering</div>
+      </div>
+
+      <div class="milestone-card m2 no-break">
+        <div class="milestone-header">
+          <div class="milestone-title">M2 &mdash; Auth &amp; Backend</div>
+          <div class="milestone-days">Days 2–6 &nbsp;·&nbsp; 13 issues</div>
+        </div>
+        <ul class="milestone-items">
+          <li>Custom User model — 5 roles + county FK</li>
+          <li>JWT endpoints: login / refresh / logout / me</li>
+          <li>PostgreSQL + django-environ (zero secrets in code)</li>
+          <li>Django models: 6 core domain models</li>
+          <li>Seed command — 21 sub-counties, 5 demo users, 3 alerts</li>
+          <li>REST API: counties, sub-counties, alerts CRUD</li>
+          <li>Role-based permission classes on all endpoints</li>
+          <li>Login page + Zustand auth store + Axios interceptor</li>
+        </ul>
+        <div class="deliverable">All 5 demo accounts login; JWT-protected API returns live PostgreSQL data; role-gated endpoints enforced</div>
+      </div>
+
+      <div class="milestone-card m3 no-break">
+        <div class="milestone-header">
+          <div class="milestone-title">M3 &mdash; Core Features</div>
+          <div class="milestone-days">Days 5–9 &nbsp;·&nbsp; 10 issues</div>
+        </div>
+        <ul class="milestone-items">
+          <li>MapPage rewrite — API-driven, no hardcoded data</li>
+          <li>Custom hooks: useFloodRisk, useSubCountyRisk, useAlerts</li>
+          <li>Sub-county slide-in detail panel (300 ms transition)</li>
+          <li>Map legend + reset-view control + last-updated badge</li>
+          <li>National Ops Dashboard (KPIs + trend chart + risk table)</li>
+          <li>County Officer Dashboard (sub-county table + actions)</li>
+          <li>Responder Dashboard (alerts feed + acknowledge)</li>
+          <li>Analyst Dashboard (AI chat + scenario form)</li>
+        </ul>
+        <div class="deliverable">All 4 dashboards live with real API data; map shows 21 sub-counties with colour-interpolated flood risk</div>
+      </div>
+
+      <div class="milestone-card m4 no-break">
+        <div class="milestone-header">
+          <div class="milestone-title">M4 &mdash; Alerts &amp; AI</div>
+          <div class="milestone-days">Days 8–11 &nbsp;·&nbsp; 9 issues</div>
+        </div>
+        <ul class="milestone-items">
+          <li>Alerts list page (filters + pagination + severity colours)</li>
+          <li>Alert detail modal — activity timeline + action buttons</li>
+          <li>Alert creation form (role-gated modal)</li>
+          <li>Notification bell — 60 s polling + unread count badge</li>
+          <li>AI endpoint — role-aware prompts + rate limiting (10/hr)</li>
+          <li>AI chat UI — typing indicator + quick-question chips</li>
+          <li>Scenario simulation form — what-if recalculation</li>
+        </ul>
+        <div class="deliverable">Full alerts lifecycle; role-aware AI briefings with conversation memory; scenario simulation returns live probability delta</div>
+      </div>
+
+      <div class="milestone-card m5 no-break">
+        <div class="milestone-header">
+          <div class="milestone-title">M5 &mdash; Reports &amp; Ship</div>
+          <div class="milestone-days">Days 11–14 &nbsp;·&nbsp; 9 issues</div>
+        </div>
+        <ul class="milestone-items">
+          <li>Reports model, API, generation + HTML-to-PDF download</li>
+          <li>User settings page (profile, password change, preferences)</li>
+          <li>Django admin: 7 models, custom actions, read-only AuditLog</li>
+          <li>Docker Compose: postgres + gunicorn + nginx full stack</li>
+          <li>README rewrite: architecture, setup guide, API reference</li>
+        </ul>
+        <div class="deliverable"><code>docker-compose up --build</code> from a clean clone gives a working full-stack app; all 5 demo accounts functional at http://localhost</div>
+      </div>
+
+    </div>
+
+    <h3 style="margin-top: 24px;">Sprint Timeline</h3>
+    <table>
+      <thead>
+        <tr><th>Day</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th><th>13</th><th>14</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>M1</strong></td>
+          <td style="background:#0891b2;opacity:.8;">&nbsp;</td>
+          <td style="background:#0891b2;opacity:.8;">&nbsp;</td>
+          <td style="background:#0891b2;opacity:.8;">&nbsp;</td>
+          <td colspan="11">&nbsp;</td>
+        </tr>
+        <tr>
+          <td><strong>M2</strong></td>
+          <td>&nbsp;</td>
+          <td style="background:#2563eb;opacity:.8;">&nbsp;</td>
+          <td style="background:#2563eb;opacity:.8;">&nbsp;</td>
+          <td style="background:#2563eb;opacity:.8;">&nbsp;</td>
+          <td style="background:#2563eb;opacity:.8;">&nbsp;</td>
+          <td style="background:#2563eb;opacity:.8;">&nbsp;</td>
+          <td colspan="8">&nbsp;</td>
+        </tr>
+        <tr>
+          <td><strong>M3</strong></td>
+          <td colspan="4">&nbsp;</td>
+          <td style="background:#7c3aed;opacity:.8;">&nbsp;</td>
+          <td style="background:#7c3aed;opacity:.8;">&nbsp;</td>
+          <td style="background:#7c3aed;opacity:.8;">&nbsp;</td>
+          <td style="background:#7c3aed;opacity:.8;">&nbsp;</td>
+          <td style="background:#7c3aed;opacity:.8;">&nbsp;</td>
+          <td colspan="5">&nbsp;</td>
+        </tr>
+        <tr>
+          <td><strong>M4</strong></td>
+          <td colspan="7">&nbsp;</td>
+          <td style="background:#db2777;opacity:.8;">&nbsp;</td>
+          <td style="background:#db2777;opacity:.8;">&nbsp;</td>
+          <td style="background:#db2777;opacity:.8;">&nbsp;</td>
+          <td style="background:#db2777;opacity:.8;">&nbsp;</td>
+          <td colspan="3">&nbsp;</td>
+        </tr>
+        <tr>
+          <td><strong>M5</strong></td>
+          <td colspan="10">&nbsp;</td>
+          <td style="background:#059669;opacity:.8;">&nbsp;</td>
+          <td style="background:#059669;opacity:.8;">&nbsp;</td>
+          <td style="background:#059669;opacity:.8;">&nbsp;</td>
+          <td style="background:#059669;opacity:.8;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 9. Risk & Mitigation -->
+  <div class="section page-break">
+    <div class="section-label">Section 9</div>
+    <h2>Risk &amp; Mitigation</h2>
+
+    <table>
+      <thead>
+        <tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>OpenAI API unavailable or rate-limited</strong></td>
+          <td class="risk-med">Medium</td>
+          <td class="risk-low">Low</td>
+          <td>Hardcoded fallback response templates already implemented in <code>_fallback_ai_response()</code>. App continues to function fully without AI key.</td>
+        </tr>
+        <tr>
+          <td><strong>Live KMD / CHIRPS data feeds inaccessible</strong></td>
+          <td class="risk-high">High</td>
+          <td class="risk-low">Low (MVP)</td>
+          <td>2024 long-rain season values hardcoded in <code>FLOOD_INDICATORS</code> dict for all 21 sub-counties. Architecture uses <code>source</code> field on <code>FloodObservation</code> to swap live feeds post-MVP.</td>
+        </tr>
+        <tr>
+          <td><strong>PostgreSQL local setup friction</strong></td>
+          <td class="risk-low">Low</td>
+          <td class="risk-low">Low</td>
+          <td>Docker Compose with postgres:16-alpine service eliminates all local setup. <code>entrypoint.sh</code> waits for db health before migrating.</td>
+        </tr>
+        <tr>
+          <td><strong>Scope creep during 14-day sprint</strong></td>
+          <td class="risk-med">Medium</td>
+          <td class="risk-high">High</td>
+          <td>47 GitHub issues across 5 milestones define the MVP boundary. SCOPE.md and PLANNING.md are committed to the repository. Epics gate progress.</td>
+        </tr>
+        <tr>
+          <td><strong>GeoJSON performance with 21 sub-county polygons</strong></td>
+          <td class="risk-low">Low</td>
+          <td class="risk-low">Low</td>
+          <td>GeoJSON is filtered at parse time to only 3 counties (10 MB → ~500 KB). Leaflet renders this well within browser limits.</td>
+        </tr>
+        <tr>
+          <td><strong>Role permission gaps in API</strong></td>
+          <td class="risk-low">Low</td>
+          <td class="risk-med">Medium</td>
+          <td>DRF permission classes tested per role for every endpoint. AuditLog middleware records all write actions for post-hoc review.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 10. Post-MVP Roadmap -->
+  <div class="section no-break">
+    <div class="section-label">Section 10</div>
+    <h2>Post-MVP Roadmap</h2>
+
+    <p>
+      The MVP architecture is deliberately designed to accept live data feeds and expanded crisis types
+      without structural changes to the API or frontend. The following phases extend the platform
+      progressively after the 14-day MVP is validated.
+    </p>
+
+    <div class="postmvp-grid">
+      <div class="postmvp-item">
+        <strong>Phase 2 — Live Data Pipelines</strong>
+        <span>Integrate KMD rainfall API, CHIRPS soil moisture, and SRTM elevation into scheduled tasks.
+        Replace hardcoded <code>FLOOD_INDICATORS</code> with real-time observations. Automated nightly prediction runs.</span>
+      </div>
+      <div class="postmvp-item">
+        <strong>Phase 3 — SMS / WhatsApp Alerts</strong>
+        <span>Civilian-facing alert delivery via Africa's Talking SMS gateway and WhatsApp Business API.
+        Civilians in at-risk sub-counties receive alerts in Swahili and English. Public portal option.</span>
+      </div>
+      <div class="postmvp-item">
+        <strong>Phase 4 — Temporal Forecasting</strong>
+        <span>Replace sigmoid scoring with LSTM or Prophet temporal models trained on KMD historical data.
+        Extend lead time to 14 days. Confidence intervals on all predictions.</span>
+      </div>
+      <div class="postmvp-item">
+        <strong>Phase 5 — Drought Module</strong>
+        <span>Activate the existing drought scoring model for Turkana, Marsabit, and Mandera cluster.
+        NDVI stress, price volatility, and historical IPC phase data as inputs. 4–8 week lead time.</span>
+      </div>
+      <div class="postmvp-item">
+        <strong>Phase 6 — Mobile App</strong>
+        <span>React Native mobile app for field responders. Offline-capable map, push notifications for
+        critical alerts, GPS location sharing during evacuations.</span>
+      </div>
+      <div class="postmvp-item">
+        <strong>Phase 7 — National Scale</strong>
+        <span>Expand from 3 counties to all 47 Kenya counties. Multi-hazard risk aggregation.
+        Integration with national disaster management platforms (NDOC, Red Cross).</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="doc-footer">
+    <span>CrisisLens &mdash; Technical Roadmap v1.0 &mdash; February 2026</span>
+    <span>github.com/OGURI254/CrisisLens &nbsp;·&nbsp; Confidential</span>
+  </div>
+
+</div><!-- /content -->
+</body>
+</html>
