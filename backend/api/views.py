@@ -5,7 +5,8 @@ import os
 
 import requests
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from api.serializers import (
@@ -44,11 +45,13 @@ def _fallback_ai_response(payload: dict) -> str:
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def health(request):
     return Response({"status": "ok"})
 
 
 @api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def drought_predict(request):
     serializer = DroughtPredictionRequest(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -58,6 +61,7 @@ def drought_predict(request):
 
 
 @api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def flood_predict(request):
     serializer = FloodPredictionRequest(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -67,6 +71,7 @@ def flood_predict(request):
 
 
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def flood_scenario(request):
     """Return pre-scored flood risk for a specific Lake Victoria sub-county.
 
@@ -97,6 +102,7 @@ def flood_scenario(request):
 
 
 @api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def ai_feedback(request):
     serializer = AIFeedbackRequest(data=request.data)
     serializer.is_valid(raise_exception=True)
