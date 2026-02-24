@@ -120,7 +120,14 @@ class AuditLog(models.Model):
         return f"{user_email} {self.action} {self.resource_type} {self.resource_id}"
 
 class Report(models.Model):
+    REPORT_TYPES = [
+        ("bulletin", "Flood Risk Bulletin"),
+        ("situation", "Situation Report"),
+        ("ai_brief", "AI Briefing Summary"),
+    ]
+
     title = models.CharField(max_length=200)
+    report_type = models.CharField(max_length=20, choices=REPORT_TYPES, default="bulletin")
     county = models.ForeignKey(County, on_delete=models.CASCADE, null=True, blank=True)
     generated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     risk_summary = models.JSONField(default=dict)

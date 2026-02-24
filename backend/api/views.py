@@ -338,8 +338,19 @@ class ReportViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Report.objects.select_related("county", "generated_by").all()
         county_id = self.request.query_params.get("county")
+        report_type = self.request.query_params.get("report_type")
+        start_date = self.request.query_params.get("start_date")
+        end_date = self.request.query_params.get("end_date")
+
         if county_id:
             qs = qs.filter(county_id=county_id)
+        if report_type:
+            qs = qs.filter(report_type=report_type)
+        if start_date:
+            qs = qs.filter(created_at__date__gte=start_date)
+        if end_date:
+            qs = qs.filter(created_at__date__lte=end_date)
+            
         return qs.order_by("-created_at")
 
     def perform_create(self, serializer):
@@ -463,11 +474,48 @@ class ReportViewSet(viewsets.ModelViewSet):
 
         story.append(Paragraph("Risk Summary", styles['Heading2']))
         
-        risk_summary_formatted = json.dumps(report.risk_summary, indent=2)
-        summary_text = risk_summary_formatted.replace(' ', '&nbsp;').replace('\n', '<br/>')
+        summary = report.risk_summary
+        table_data = []
         
-        code_style = ParagraphStyle('Code', parent=styles['Normal'], fontName='Courier', fontSize=10)
-        story.append(Paragraph(summary_text, code_style))
+        if summary.get("level") == "County":
+            # Columns: Area, Probability, Category
+            table_data.append(["Sub-County Area", "Probability", "Risk Level"])
+            for area in summary.get("top_areas", []):
+                table_data.append([
+                    area.get("name"), 
+                    f"{area.get('probability', 0)}%", 
+                    area.get("category")
+                ])
+        else:
+            # Columns: County, Max Probability
+            table_data.append(["County Name", "Max Risk Probability"])
+            for county in summary.get("top_counties", []):
+                table_data.append([
+                    county.get("name"), 
+                    f"{county.get('probability', 0)}%"
+                ])
+
+        if table_data:
+            from reportlab.platypus import Table, TableStyle
+            from reportlab.lib import colors
+            
+            t = Table(table_data, hAlign='LEFT', colWidths=[200, 100, 100] if len(table_data[0])==3 else [200, 150])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f1f5f9')]),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            story.append(t)
+        else:
+            story.append(Paragraph("No risk data available for this report.", styles['Normal']))
+
         story.append(Spacer(1, 24))
 
         story.append(Paragraph("Recommendations", styles['Heading2']))

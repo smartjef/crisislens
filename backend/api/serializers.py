@@ -225,11 +225,12 @@ class FloodAlertSerializer(serializers.ModelSerializer):
 class ReportSerializer(serializers.ModelSerializer):
     county_name = serializers.CharField(source="county.name", read_only=True)
     generated_by_name = serializers.CharField(source="generated_by.get_full_name", read_only=True)
+    report_type_display = serializers.CharField(source="get_report_type_display", read_only=True)
 
     class Meta:
         model = Report
         fields = [
-            "id", "title", "county", "county_name",
+            "id", "title", "report_type", "report_type_display", "county", "county_name",
             "generated_by", "generated_by_name", "risk_summary",
             "recommendations", "created_at"
         ]
