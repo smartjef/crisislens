@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from rest_framework import serializers
-from api.models import County, SubCounty, FloodObservation, FloodPrediction, FloodAlert
+from api.models import County, SubCounty, FloodObservation, FloodPrediction, FloodAlert, Report
 
 class DroughtPredictionRequest(serializers.Serializer):
     rainfall_deviation = serializers.FloatField(
@@ -221,3 +221,16 @@ class FloodAlertSerializer(serializers.ModelSerializer):
             "status", "created_by", "created_at",
             "acknowledged_at", "acknowledged_by", "resolved_at"
         ]
+
+class ReportSerializer(serializers.ModelSerializer):
+    county_name = serializers.CharField(source="county.name", read_only=True)
+    generated_by_name = serializers.CharField(source="generated_by.get_full_name", read_only=True)
+
+    class Meta:
+        model = Report
+        fields = [
+            "id", "title", "county", "county_name",
+            "generated_by", "generated_by_name", "risk_summary",
+            "recommendations", "created_at"
+        ]
+        read_only_fields = ["generated_by", "created_at", "risk_summary", "recommendations"]

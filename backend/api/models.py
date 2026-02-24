@@ -118,3 +118,14 @@ class AuditLog(models.Model):
     def __str__(self) -> str:
         user_email = self.user.email if self.user else "System"
         return f"{user_email} {self.action} {self.resource_type} {self.resource_id}"
+
+class Report(models.Model):
+    title = models.CharField(max_length=200)
+    county = models.ForeignKey(County, on_delete=models.CASCADE, null=True, blank=True)
+    generated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    risk_summary = models.JSONField(default=dict)
+    recommendations = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return self.title

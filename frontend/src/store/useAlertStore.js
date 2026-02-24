@@ -1,5 +1,20 @@
 import { create } from 'zustand';
 
-export const useAlertStore = create(() => ({
+export const useAlertStore = create((set) => ({
     unreadCount: 3, // Mocked initial unread count
+    toasts: [],
+
+    addToast: (message, type = 'info') => {
+        const id = Date.now().toString();
+        set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
+
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+            set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+        }, 3000);
+    },
+
+    removeToast: (id) => {
+        set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+    },
 }));
