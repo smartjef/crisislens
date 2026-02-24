@@ -118,3 +118,41 @@ class AuditLog(models.Model):
     def __str__(self) -> str:
         user_email = self.user.email if self.user else "System"
         return f"{user_email} {self.action} {self.resource_type} {self.resource_id}"
+
+class Report(models.Model):
+    REPORT_TYPES = [
+        ("bulletin", "Flood Risk Bulletin"),
+        ("situation", "Situation Report"),
+        ("ai_brief", "AI Briefing Summary"),
+    ]
+
+    title = models.CharField(max_length=200)
+    report_type = models.CharField(max_length=20, choices=REPORT_TYPES, default="bulletin")
+    county = models.ForeignKey(County, on_delete=models.CASCADE, null=True, blank=True)
+    generated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    risk_summary = models.JSONField(default=dict)
+    recommendations = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return self.title
+
+class AIChatMessage(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    message = models.TextField()
+    is_ai = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["timestamp"]
+
+    def __str__(self) -> str:
+        sender = "AI" if self.is_ai else self.user.email
+        return f"{sender}: {self.message[:50]}..."
+
+class AIRequestLog(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.user.email} at {self.timestamp}"

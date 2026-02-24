@@ -12,14 +12,16 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import PermissionDenied
 
-from api.models import County, SubCounty, FloodAlert, AuditLog
-from api.permissions import IsCountyOfficer, IsResponder, IsCountyMember, _NAT
+from django.http import HttpResponse
+from api.models import County, SubCounty, FloodAlert, AuditLog, Report, AIChatMessage, AIRequestLog
+from api.permissions import IsCountyOfficer, IsResponder, IsCountyMember, _NAT, IsAnalyst
 from api.serializers import (
     CountyListSerializer,
     CountyDetailSerializer,
     SubCountyListSerializer,
     SubCountyDetailSerializer,
     FloodAlertSerializer,
+    ReportSerializer,
 
     AIFeedbackRequest,
     AIFeedbackResponse,
@@ -27,6 +29,8 @@ from api.serializers import (
     DroughtPredictionResponse,
     FloodPredictionRequest,
     FloodPredictionResponse,
+    AIChatMessageSerializer,
+    AIChatRequestSerializer,
 )
 from api.services import FLOOD_INDICATORS, score_drought, score_flood
 
@@ -165,6 +169,105 @@ def ai_feedback(request):
     return Response(output.data, status=status.HTTP_200_OK)
 
 
+class AIChatViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        # Fetch last 20 messages for this user
+        messages = AIChatMessage.objects.filter(user=request.user).order_by("-timestamp")[:20]
+        serializer = AIChatMessageSerializer(reversed(list(messages)), many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        # 1. Rate Limiting (10/hr)
+        hour_ago = timezone.now() - timezone.timedelta(hours=1)
+        count = AIRequestLog.objects.filter(user=request.user, timestamp__gte=hour_ago).count()
+        if count >= 10:
+            return Response(
+                {"error": "AI Rate Limit Exceeded: 10 requests per hour. Please wait."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
+        serializer = AIChatRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+
+        # Log hit
+        AIRequestLog.objects.create(user=request.user)
+
+        # Save user message
+        AIChatMessage.objects.create(user=request.user, message=payload["message"], is_ai=False)
+
+        # 2. Extract Context
+        role = getattr(request.user, 'role', 'analyst')
+        county = payload.get("county") or "National"
+        area = payload.get("area") or "General"
+        
+        # Build prompt instructions based on role
+        if role == 'responder':
+            role_focus = "Focus on tactical evacuation safety, immediate responder procedures, and field logistics."
+        elif role == 'analyst':
+            role_focus = "Focus on deep technical data, hydrological trends, and predictive modeling assumptions."
+        else:
+            role_focus = "Provide a high-level situational overview and safety guidance."
+
+        history_msgs = AIChatMessage.objects.filter(user=request.user).order_by("-timestamp")[1:6]
+        history_text = "\n".join([f"{'AI' if m.is_ai else 'User'}: {m.message}" for m in reversed(list(history_msgs))])
+
+        prompt = (
+            f"Role: {role}. {role_focus}\n"
+            f"Context: County={county}, Sub-county={area}.\n"
+            f"History:\n{history_text}\n"
+            f"Question: {payload['message']}"
+        )
+
+        # 3. Request logic (Call existing feedback logic or direct)
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            ai_response = _fallback_ai_response({**payload, "risk_type": "flood", "question": payload["message"]})
+        else:
+            try:
+                res = requests.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {"role": "system", "content": "You are CrisisLens, an AI decision support assistant."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": 0.7,
+                    },
+                    timeout=20
+                )
+                if res.status_code == 200:
+                    ai_response = res.json()["choices"][0]["message"]["content"]
+                else:
+                    ai_response = f"AI Service Error: {res.text[:100]}"
+            except Exception as e:
+                ai_response = f"Connection failed: {str(e)}"
+
+        # Save AI response
+        ai_msg = AIChatMessage.objects.create(user=request.user, message=ai_response, is_ai=True)
+        return Response(AIChatMessageSerializer(ai_msg).data, status=status.HTTP_201_CREATED)
+
+
+class FloodSimulationViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request):
+        serializer = FloodPredictionRequest(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Calculate simulation
+        result = score_flood(**serializer.validated_data)
+        
+        return Response({
+            "simulated": result,
+            "inputs": serializer.validated_data
+        })
+
+
 class CountyViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -182,6 +285,60 @@ class CountyViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 qs = qs.none()
         return qs
+
+    @action(detail=False, methods=["get"])
+    def stats(self, request):
+        from django.db.models import Avg, Sum, OuterRef, Subquery
+        from api.models import FloodPrediction
+
+        # 1. Active Alerts
+        active_alerts = FloodAlert.objects.filter(status="active").count()
+
+        # 2. Latest predictions subquery
+        latest_preds = FloodPrediction.objects.filter(
+            sub_county=OuterRef("pk")
+        ).order_by("-predicted_at")
+
+        # 3. High Risk Analysis
+        high_risk_subs = SubCounty.objects.annotate(
+            latest_prob=Subquery(latest_preds.values("flood_probability")[:1])
+        ).filter(latest_prob__gte=75)
+
+        high_risk_count = high_risk_subs.count()
+        pop_at_risk = high_risk_subs.aggregate(total=Sum("population"))["total"] or 0
+
+        # 4. Avg Lead Time
+        avg_lead = SubCounty.objects.annotate(
+            latest_lead=Subquery(latest_preds.values("lead_time_days")[:1])
+        ).aggregate(avg=Avg("latest_lead"))["avg"] or 0
+
+        return Response({
+            "active_alerts": active_alerts,
+            "high_risk_count": high_risk_count,
+            "pop_at_risk": pop_at_risk,
+            "avg_lead_time": round(float(avg_lead), 1)
+        })
+
+    @action(detail=False, methods=["get"])
+    def trend(self, request):
+        from api.models import FloodPrediction
+        counties = County.objects.all()
+        data = []
+        
+        # Get last 30 predictions grouped by date for each county
+        for county in counties:
+            preds = FloodPrediction.objects.filter(
+                sub_county__county=county
+            ).order_by("-predicted_at")[:30]
+            
+            for p in reversed(list(preds)):
+                data.append({
+                    "date": p.predicted_at.isoformat(),
+                    "probability": p.flood_probability,
+                    "county": county.name
+                })
+        
+        return Response(data)
 
     @action(detail=True, methods=["get"])
     def risk(self, request, pk=None):
@@ -328,3 +485,196 @@ class FloodAlertViewSet(viewsets.ModelViewSet):
         
         AuditLog.log(request.user, "Alert Resolved", alert)
         return Response(self.get_serializer(alert).data)
+
+class ReportViewSet(viewsets.ModelViewSet):
+    serializer_class = ReportSerializer
+    permission_classes = [IsAuthenticated, IsAnalyst]
+    
+    def get_queryset(self):
+        qs = Report.objects.select_related("county", "generated_by").all()
+        county_id = self.request.query_params.get("county")
+        report_type = self.request.query_params.get("report_type")
+        start_date = self.request.query_params.get("start_date")
+        end_date = self.request.query_params.get("end_date")
+
+        if county_id:
+            qs = qs.filter(county_id=county_id)
+        if report_type:
+            qs = qs.filter(report_type=report_type)
+        if start_date:
+            qs = qs.filter(created_at__date__gte=start_date)
+        if end_date:
+            qs = qs.filter(created_at__date__lte=end_date)
+            
+        return qs.order_by("-created_at")
+
+    def perform_create(self, serializer):
+        county = serializer.validated_data.get("county")
+        user = self.request.user
+        
+        risk_summary = {}
+        recommendations = "Standard recommendations apply."
+        
+        if county:
+            subs = list(county.sub_counties.prefetch_related("floodprediction_set").all())
+            max_prob = 0.0
+            areas = []
+            for sub in subs:
+                pred = sub.floodprediction_set.order_by("-predicted_at").first()
+                if pred:
+                    max_prob = max(max_prob, pred.flood_probability)
+                    areas.append({
+                        "name": sub.name,
+                        "probability": pred.flood_probability,
+                        "category": pred.risk_category
+                    })
+            areas.sort(key=lambda x: x["probability"], reverse=True)
+            
+            risk_summary = {
+                "level": "County",
+                "county_name": county.name,
+                "highest_probability": max_prob,
+                "top_areas": areas[:5]
+            }
+            if max_prob >= 75:
+                recommendations = "Immediate evacuation and resource mobilization required in high-risk sub-counties."
+            elif max_prob >= 50:
+                recommendations = "Heightened monitoring and preparation of emergency supplies."
+        else:
+            counties = County.objects.prefetch_related("sub_counties__floodprediction_set").all()
+            top_counties = []
+            for c in counties:
+                subs = list(c.sub_counties.all())
+                c_max = 0.0
+                for sub in subs:
+                    pred = sub.floodprediction_set.order_by("-predicted_at").first()
+                    if pred and pred.flood_probability > c_max:
+                        c_max = pred.flood_probability
+                top_counties.append({"name": c.name, "probability": c_max})
+            
+            top_counties.sort(key=lambda x: x["probability"], reverse=True)
+            risk_summary = {
+                "level": "National",
+                "top_counties": top_counties[:5]
+            }
+            recommendations = "Allocate national resources to top 5 at-risk counties."
+
+        serializer.save(
+            generated_by=user,
+            risk_summary=risk_summary,
+            recommendations=recommendations
+        )
+        AuditLog.log(user, "Report Generated", serializer.instance)
+
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        import json
+        import csv
+        from django.http import HttpResponse
+        report = self.get_object()
+        
+        fmt = request.query_params.get("fmt", "pdf").lower()
+        
+        if fmt == "csv":
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="report_{report.id}.csv"'
+            writer = csv.writer(response)
+            
+            summary = report.risk_summary
+            
+            writer.writerow(['Report Title', report.title])
+            writer.writerow(['Generated By', report.generated_by.get_full_name() if report.generated_by else 'System'])
+            writer.writerow(['Date', report.created_at.strftime('%Y-%m-%d %H:%M:%S')])
+            writer.writerow([])
+            
+            if summary.get("level") == "County":
+                writer.writerow(['Level', 'County (' + summary.get("county_name", "") + ')'])
+                writer.writerow(['Highest Probability', summary.get("highest_probability", 0)])
+                writer.writerow([])
+                writer.writerow(['Area Name', 'Risk Probability', 'Category'])
+                for area in summary.get("top_areas", []):
+                    writer.writerow([area.get("name"), f"{area.get('probability', 0)}%", area.get("category")])
+            else:
+                writer.writerow(['Level', 'National Overview'])
+                writer.writerow([])
+                writer.writerow(['County Name', 'Max Risk Probability'])
+                for county in summary.get("top_counties", []):
+                    writer.writerow([county.get("name"), f"{county.get('probability', 0)}%"])
+                    
+            writer.writerow([])
+            writer.writerow(['Recommendations', report.recommendations])
+            return response
+            
+        # Default PDF Generation using reportlab
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="report_{report.id}.pdf"'
+        
+        doc = SimpleDocTemplate(response, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+
+        story.append(Paragraph(report.title, styles['Title']))
+        story.append(Spacer(1, 12))
+        
+        gen_by = report.generated_by.get_full_name() if report.generated_by else 'System'
+        date_str = report.created_at.strftime('%B %d, %Y')
+        
+        story.append(Paragraph(f"Generated by: {gen_by}", styles['Normal']))
+        story.append(Paragraph(f"Date: {date_str}", styles['Normal']))
+        story.append(Spacer(1, 24))
+
+        story.append(Paragraph("Risk Summary", styles['Heading2']))
+        
+        summary = report.risk_summary
+        table_data = []
+        
+        if summary.get("level") == "County":
+            # Columns: Area, Probability, Category
+            table_data.append(["Sub-County Area", "Probability", "Risk Level"])
+            for area in summary.get("top_areas", []):
+                table_data.append([
+                    area.get("name"), 
+                    f"{area.get('probability', 0)}%", 
+                    area.get("category")
+                ])
+        else:
+            # Columns: County, Max Probability
+            table_data.append(["County Name", "Max Risk Probability"])
+            for county in summary.get("top_counties", []):
+                table_data.append([
+                    county.get("name"), 
+                    f"{county.get('probability', 0)}%"
+                ])
+
+        if table_data:
+            from reportlab.platypus import Table, TableStyle
+            from reportlab.lib import colors
+            
+            t = Table(table_data, hAlign='LEFT', colWidths=[200, 100, 100] if len(table_data[0])==3 else [200, 150])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f1f5f9')]),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            story.append(t)
+        else:
+            story.append(Paragraph("No risk data available for this report.", styles['Normal']))
+
+        story.append(Spacer(1, 24))
+
+        story.append(Paragraph("Recommendations", styles['Heading2']))
+        story.append(Paragraph(report.recommendations.replace('\n', '<br/>'), styles['Normal']))
+
+        doc.build(story)
+        return response

@@ -4,11 +4,15 @@ export default function Badge({ variant = 'info', pulse = false, className = '',
     const baseClasses = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium';
 
     const variantClasses = {
-        critical: 'bg-danger text-white dark:bg-danger-dark',
-        high: 'bg-orange-500 text-white dark:bg-orange-600',
-        moderate: 'bg-amber-500 text-white dark:bg-amber-600',
-        low: 'bg-flood-600 text-white dark:bg-flood-700',
-        info: 'bg-slate-500 text-white dark:bg-slate-600',
+        critical: 'bg-red-600 text-white',
+        high: 'bg-orange-500 text-white',
+        moderate: 'bg-amber-500 text-white',
+        low: 'bg-blue-600 text-white',
+        info: 'bg-slate-500 text-white',
+        danger: 'bg-red-100 text-red-700 border border-red-200',
+        warning: 'bg-amber-100 text-amber-700 border border-amber-200',
+        success: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+        outline: 'border border-slate-200 text-slate-600 bg-white',
     };
 
     const dotClasses = {
@@ -17,6 +21,10 @@ export default function Badge({ variant = 'info', pulse = false, className = '',
         moderate: 'bg-white',
         low: 'bg-white',
         info: 'bg-white',
+        danger: 'bg-red-500',
+        warning: 'bg-amber-500',
+        success: 'bg-emerald-500',
+        outline: 'bg-slate-400',
     };
 
     return (

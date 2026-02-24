@@ -35,7 +35,7 @@ const focusAreasGeoJSON = {
 
 
 export default function MapPage() {
-    const [selectedCountyName, setSelectedCountyName] = useState("Kisumu");
+    const [selectedCounties, setSelectedCounties] = useState(["Kisumu", "Siaya", "Homa Bay"]);
     const [selectedAreaName, setSelectedAreaName] = useState("");
     const [mapInstance, setMapInstance] = useState(null);
 
@@ -47,7 +47,17 @@ export default function MapPage() {
         return allCounties.filter(c => FOCUS_COUNTY_NAMES.has(c.name));
     }, [allCounties]);
 
-    const selectedCountyObj = counties.find(c => c.name === selectedCountyName);
+    // Figure out which county should drive the right-side Panel.
+    // If an area is selected, its parent county drives it. Otherwise, if EXACTLY ONE county is selected, that county drives it.
+    let panelCountyObj = null;
+    if (selectedAreaName) {
+        const feature = focusAreasGeoJSON.features.find(f => f.properties.adm2_name === selectedAreaName);
+        if (feature) {
+            panelCountyObj = counties.find(c => c.name === feature.properties.adm1_name);
+        }
+    } else if (selectedCounties.length === 1) {
+        panelCountyObj = counties.find(c => c.name === selectedCounties[0]);
+    }
 
     const { data: subCountiesData, loading: subCountiesLoading, error: subCountiesError, refetch: refetchSubCounties } = useSubCountyRisk();
     const subCounties = subCountiesData || [];
@@ -117,35 +127,35 @@ export default function MapPage() {
 
     // Filter top subcounties for the panel
     const topAreas = useMemo(() => {
-        if (!selectedCountyObj) return [];
-        // We can filter by county property if the API provided it as an ID, 
-        // but we can also just use the robustAreaRiskByKey keys to find matching areas.
+        if (!panelCountyObj) return [];
         const areasInCounty = kenyaAreas.features
-            .filter(f => f.properties.adm1_name === selectedCountyName)
+            .filter(f => f.properties.adm1_name === panelCountyObj.name)
             .map(f => f.properties.adm2_name);
 
-        // Return backend SubCounty objects that match those names, sorted by risk
         return subCounties
             .filter(s => areasInCounty.includes(s.name))
             .sort((a, b) => b.flood_probability - a.flood_probability)
             .slice(0, 6);
-    }, [selectedCountyName, subCounties]);
+    }, [panelCountyObj, subCounties]);
 
-
-    const handleCountyClick = (name, bounds) => {
-        setSelectedCountyName(name);
+    const handleCountyToggle = (name) => {
+        setSelectedCounties(prev => {
+            if (prev.includes(name)) {
+                return prev.filter(c => c !== name);
+            }
+            return [...prev, name];
+        });
         setSelectedAreaName("");
-        if (mapInstance && bounds) {
-            mapInstance.fitBounds(bounds, { padding: [20, 20] });
-        }
     };
 
     const handleAreaClick = (countyName, areaName) => {
-        setSelectedCountyName(countyName);
+        if (!selectedCounties.includes(countyName)) {
+            setSelectedCounties(prev => [...prev, countyName]);
+        }
         setSelectedAreaName(areaName);
     };
 
-    const isPanelOpen = !!selectedCountyObj;
+    const isPanelOpen = !!panelCountyObj;
 
     if (countiesError) {
         return (
@@ -168,7 +178,7 @@ export default function MapPage() {
     }
 
     return (
-        <div className="flex h-full gap-4 p-4 bg-slate-50">
+        <div className="flex h-full gap-4 p-4 bg-slate-50 relative overflow-hidden">
             {/* Left side: Map and selectors */}
             <div className="flex-1 flex flex-col gap-4">
                 {/* Header/Legend bar */}
@@ -181,15 +191,17 @@ export default function MapPage() {
                 </div>
 
                 {/* The map wrapper */}
-                <div className="flex-1 shadow-sm rounded-xl overflow-hidden bg-white border border-slate-200 p-2">
+                <div className="flex-1 shadow-sm rounded-xl overflow-hidden bg-white border border-slate-200 p-2 relative z-0">
                     <LeafletMap
                         focusCountiesGeoJSON={focusCountiesGeoJSON}
                         focusAreasGeoJSON={focusAreasGeoJSON}
                         riskByCounty={riskByCounty}
                         areaRiskByKey={robustAreaRiskByKey}
-                        onCountyClick={handleCountyClick}
+                        onCountyClick={handleCountyToggle}
                         onAreaClick={handleAreaClick}
+                        mapInstance={mapInstance}
                         setMapInstance={setMapInstance}
+                        selectedCounties={selectedCounties}
                     />
                 </div>
 
@@ -200,37 +212,77 @@ export default function MapPage() {
                     </h3>
                     <CountySelector
                         counties={counties}
-                        selectedCounty={selectedCountyName}
-                        onSelectCounty={(name) => {
-                            setSelectedCountyName(name);
-                            setSelectedAreaName("");
-                        }}
+                        selectedCounties={selectedCounties}
+                        onToggleCounty={handleCountyToggle}
                     />
+
+                    {/* Sub-county dropdown filter when exactly 1 county is selected */}
+                    {selectedCounties.length === 1 && (
+                        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-3">
+                            <label className="text-sm font-semibold text-slate-600">Zoom to Area:</label>
+                            <select
+                                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all cursor-pointer"
+                                value={selectedAreaName}
+                                onChange={(e) => {
+                                    setSelectedAreaName(e.target.value);
+                                }}
+                            >
+                                <option value="">-- All Areas in {selectedCounties[0]} --</option>
+                                {subCounties
+                                    .filter(s => kenyaAreas.features.some(f => f.properties.adm2_name === s.name && f.properties.adm1_name === selectedCounties[0]))
+                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                    .map(area => (
+                                        <option key={area.id} value={area.name}>{area.name}</option>
+                                    ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Right side: Detail Panel (slides in if open) */}
+            {/* Mobile Backdrop - only visible when panel is open on mobile */}
             {isPanelOpen && (
-                <div className="w-80 shrink-0">
-                    {subCountiesError ? (
-                        <div className="h-full">
-                            <ErrorCard message="Failed to load sub-county data." onRetry={refetchSubCounties} />
+                <div
+                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] md:hidden animate-in fade-in duration-300"
+                    onClick={() => setSelectedAreaName("")}
+                />
+            )}
+
+            {/* Right side / Bottom: Detail Panel (slides in if open) */}
+            <div className={`
+                fixed bottom-0 left-0 right-0 h-[60vh] w-full transform transition-transform duration-300 ease-out z-[100]
+                ${isPanelOpen ? "translate-y-0" : "translate-y-full"}
+                md:relative md:top-0 md:h-full md:w-96 md:translate-y-0
+                md:transform-none
+            `}>
+                <div className={`
+                    w-full h-full transform transition-transform duration-300 ease-out
+                    md:transform md:transition-transform md:duration-300
+                    ${isPanelOpen ? "md:translate-x-0" : "md:translate-x-full"}
+                `}>
+                    {isPanelOpen && (
+                        <div className="w-full h-full rounded-t-[2.5rem] md:rounded-2xl overflow-hidden shadow-2xl border-t border-x md:border border-slate-200 bg-white">
+                            {subCountiesError ? (
+                                <div className="h-full p-4">
+                                    <ErrorCard message="Failed to load sub-county data." onRetry={refetchSubCounties} />
+                                </div>
+                            ) : subCountiesLoading ? (
+                                <div className="w-full h-full flex flex-col gap-4 p-6">
+                                    <Skeleton className="h-24 w-full rounded-xl" />
+                                    <Skeleton className="flex-1 w-full rounded-xl" />
+                                </div>
+                            ) : (
+                                <SubCountyPanel
+                                    county={panelCountyObj}
+                                    areaRiskEntry={selectedAreaObj}
+                                    topAreas={topAreas}
+                                    onClose={() => setSelectedAreaName("")}
+                                />
+                            )}
                         </div>
-                    ) : subCountiesLoading ? (
-                        <div className="w-full h-full flex flex-col gap-4">
-                            <Skeleton className="h-24 w-full rounded-xl" />
-                            <Skeleton className="flex-1 w-full rounded-xl" />
-                        </div>
-                    ) : (
-                        <SubCountyPanel
-                            county={selectedCountyObj}
-                            areaRiskEntry={selectedAreaObj}
-                            topAreas={topAreas}
-                            onClose={() => setSelectedCountyName("")}
-                        />
                     )}
                 </div>
-            )}
+            </div>
         </div>
     );
 }
