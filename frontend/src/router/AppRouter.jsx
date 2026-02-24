@@ -13,6 +13,7 @@ import LoginPage from '../pages/LoginPage';
 import { UnauthorizedPage, NotFoundPage } from '../pages/ErrorPages';
 import { NationalOpsDashboard, CountyDashboard, ResponderDashboard, AnalystDashboard } from '../pages/Dashboards';
 import { AlertsPage, AlertDetailPage, ReportsPage, SettingsPage, AdminPage } from '../pages/GenericPages';
+import { ProfilePage } from '../pages/ProfilePage';
 
 export default function AppRouter() {
     return (
@@ -33,6 +34,7 @@ export default function AppRouter() {
                     {/* The any-auth map route */}
                     <Route path="/map" element={<PrivateRoute><App /></PrivateRoute>} />
                     <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+                    <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
 
                     {/* Dashboard Routing Gateway */}
                     <Route path="/dashboard" element={<PrivateRoute><DashboardRouter /></PrivateRoute>} />

@@ -18,9 +18,21 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 COUNTIES = [
-    {"name": "Kisumu",   "code": "KSM", "region": "Nyanza"},
-    {"name": "Siaya",    "code": "SIA", "region": "Nyanza"},
-    {"name": "Homa Bay", "code": "HB",  "region": "Nyanza"},
+    {
+        "name": "Kisumu", "code": "KSM", "region": "Nyanza",
+        "population": 1155574, "centroid_lat": -0.0917, "centroid_lon": 34.7680,
+        "subcounties": ["Kisumu East", "Kisumu West", "Kisumu Central", "Seme", "Nyando", "Muhoroni", "Nyakach"]
+    },
+    {
+        "name": "Siaya", "code": "SIA", "region": "Nyanza",
+        "population": 993183, "centroid_lat": 0.0626, "centroid_lon": 34.2878,
+        "subcounties": ["Alego Usonga", "Bondo", "Gem", "Rarieda", "Ugenya", "Ugunja"]
+    },
+    {
+        "name": "Homa Bay", "code": "HB", "region": "Nyanza",
+        "population": 1131950, "centroid_lat": -0.5273, "centroid_lon": 34.4539,
+        "subcounties": ["Homa Bay Town", "Kabondo Kasipul", "Karachuonyo", "Kasipul", "Mbita", "Ndhiwa", "Rangwe", "Suba North", "Suba South"]
+    },
 ]
 
 USERS = [
@@ -93,18 +105,55 @@ class Command(BaseCommand):
     help = "Seed the database with counties and demo users"
 
     def handle(self, *args, **options):
-        from api.models import County
+        from api.models import County, SubCounty, FloodObservation, FloodPrediction
+        import random
 
-        self.stdout.write(self.style.MIGRATE_HEADING("\nSeeding counties…"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\nSeeding counties, subcounties, and risk predictions…"))
         county_map: dict[str, County] = {}
         for data in COUNTIES:
+            subcounties_list = data.pop("subcounties")
             county, created = County.objects.get_or_create(
                 code=data["code"],
-                defaults={"name": data["name"], "region": data["region"]},
+                defaults={
+                    "name": data["name"], 
+                    "region": data["region"],
+                    "population": data["population"],
+                    "centroid_lat": data["centroid_lat"],
+                    "centroid_lon": data["centroid_lon"],
+                },
             )
             county_map[county.name] = county
             status = "created" if created else "exists "
             self.stdout.write(f"  [{status}] {county}")
+
+            for sc_name in subcounties_list:
+                sc, sc_created = SubCounty.objects.get_or_create(
+                    county=county,
+                    name=sc_name,
+                    defaults={
+                        "population": int(data["population"] / len(subcounties_list)),
+                        "area_sqkm": 200.0,
+                    }
+                )
+                
+                # Mock some risk data if missing
+                if not FloodObservation.objects.filter(sub_county=sc).exists():
+                    obs = FloodObservation.objects.create(
+                        sub_county=sc,
+                        rainfall_accumulation=random.uniform(10, 150),
+                        soil_moisture=random.uniform(0.3, 0.9),
+                        elevation=random.uniform(1100, 1500),
+                        past_flood_occurrence=random.choice([True, False]),
+                    )
+                    prob = random.uniform(10, 95)
+                    FloodPrediction.objects.create(
+                        observation=obs,
+                        sub_county=sc,
+                        flood_probability=round(prob, 2),
+                        risk_category="Critical" if prob > 80 else "High" if prob > 60 else "Medium" if prob > 40 else "Low",
+                        lead_time_days=random.randint(1, 5),
+                        confidence=round(random.uniform(0.6, 0.9), 2),
+                    )
 
         self.stdout.write(self.style.MIGRATE_HEADING("\nSeeding demo users…"))
         for data in USERS:

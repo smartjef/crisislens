@@ -1,5 +1,8 @@
-import React, { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import React, { useState, useMemo } from "react";
+import useCounties from "../hooks/useCounties";
+import useSubCountyRisk from "../hooks/useSubCountyRisk";
+import Skeleton from "../components/ui/Skeleton";
+import ErrorCard from "../components/ui/ErrorCard";
 import LeafletMap from "../components/map/LeafletMap";
 import CountySelector from "../components/map/CountySelector";
 import SubCountyPanel from "../components/map/SubCountyPanel";
@@ -32,31 +35,22 @@ const focusAreasGeoJSON = {
 
 
 export default function MapPage() {
-    const [counties, setCounties] = useState([]);
-    const [subCounties, setSubCounties] = useState([]);
     const [selectedCountyName, setSelectedCountyName] = useState("Kisumu");
     const [selectedAreaName, setSelectedAreaName] = useState("");
     const [mapInstance, setMapInstance] = useState(null);
 
-    // Fetch live risk data from the backend
-    useEffect(() => {
-        async function fetchData() {
-            try {
-                const [countyRes, subRes] = await Promise.all([
-                    axios.get("http://localhost:8000/api/counties/"),
-                    axios.get("http://localhost:8000/api/sub-counties/")
-                ]);
+    const { data: allCounties, loading: countiesLoading, error: countiesError, refetch: refetchCounties } = useCounties();
 
-                // Ensure we only use counties from our focus set
-                const focusData = countyRes.data.filter(c => FOCUS_COUNTY_NAMES.has(c.name));
-                setCounties(focusData);
-                setSubCounties(subRes.data);
-            } catch (err) {
-                console.error("Error fetching map risk data:", err);
-            }
-        }
-        fetchData();
-    }, []);
+    // Ensure we only use counties from our focus set
+    const counties = useMemo(() => {
+        if (!allCounties) return [];
+        return allCounties.filter(c => FOCUS_COUNTY_NAMES.has(c.name));
+    }, [allCounties]);
+
+    const selectedCountyObj = counties.find(c => c.name === selectedCountyName);
+
+    const { data: subCountiesData, loading: subCountiesLoading, error: subCountiesError, refetch: refetchSubCounties } = useSubCountyRisk();
+    const subCounties = subCountiesData || [];
 
     // Map backend arrays into keyed lookups for the Leaflet component
     const riskByCounty = useMemo(() => {
@@ -95,15 +89,17 @@ export default function MapPage() {
         }, {});
     }, [subCounties, counties]);
 
-    // Adjust areaRiskByKey so it uses `${countyName}::${areaName}` to be extremely robust like before.
+    // Adjust areaRiskByKey to map directly by 'adm2_name' since the GeoJSON adm2 names 
+    // are robust enough to match the seeded DB names.
     const robustAreaRiskByKey = useMemo(() => {
         const acc = {};
         kenyaAreas.features.forEach(f => {
             const areaName = f.properties.adm2_name;
             const countyName = f.properties.adm1_name;
-            // Find the backend record that matches exactly
+            // Find the backend record that matches exactly the GeoJSON adm2_name
             const backendArea = subCounties.find(s => s.name === areaName);
             if (backendArea) {
+                // Key it as County::Subcounty to be safe for LeafletMap
                 acc[`${countyName}::${areaName}`] = {
                     ...backendArea,
                     riskPercent: backendArea.flood_probability,
@@ -111,10 +107,12 @@ export default function MapPage() {
                 };
             }
         });
-        return acc;
-    }, [subCounties]);
 
-    const selectedCountyObj = counties.find(c => c.name === selectedCountyName);
+        console.log("MAPPED GEOJSON Subcounties: ", Object.keys(acc));
+        console.log("AVAILABLE API Subcounties: ", subCounties.map(s => s.name));
+        return acc;
+    }, [subCounties, kenyaAreas]);
+
     const selectedAreaObj = subCounties.find(s => s.name === selectedAreaName);
 
     // Filter top subcounties for the panel
@@ -148,6 +146,26 @@ export default function MapPage() {
     };
 
     const isPanelOpen = !!selectedCountyObj;
+
+    if (countiesError) {
+        return (
+            <div className="flex items-center justify-center p-8 h-full bg-slate-50">
+                <ErrorCard message="Failed to load county data." onRetry={refetchCounties} />
+            </div>
+        );
+    }
+
+    if (countiesLoading) {
+        return (
+            <div className="flex h-full gap-4 p-4 bg-slate-50">
+                <div className="flex-1 flex flex-col gap-4">
+                    <Skeleton className="h-16 w-full rounded-xl" />
+                    <Skeleton className="flex-1 w-full rounded-xl" />
+                    <Skeleton className="h-24 w-full rounded-xl" />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-full gap-4 p-4 bg-slate-50">
@@ -194,12 +212,23 @@ export default function MapPage() {
             {/* Right side: Detail Panel (slides in if open) */}
             {isPanelOpen && (
                 <div className="w-80 shrink-0">
-                    <SubCountyPanel
-                        county={selectedCountyObj}
-                        areaRiskEntry={selectedAreaObj}
-                        topAreas={topAreas}
-                        onClose={() => setSelectedCountyName("")}
-                    />
+                    {subCountiesError ? (
+                        <div className="h-full">
+                            <ErrorCard message="Failed to load sub-county data." onRetry={refetchSubCounties} />
+                        </div>
+                    ) : subCountiesLoading ? (
+                        <div className="w-full h-full flex flex-col gap-4">
+                            <Skeleton className="h-24 w-full rounded-xl" />
+                            <Skeleton className="flex-1 w-full rounded-xl" />
+                        </div>
+                    ) : (
+                        <SubCountyPanel
+                            county={selectedCountyObj}
+                            areaRiskEntry={selectedAreaObj}
+                            topAreas={topAreas}
+                            onClose={() => setSelectedCountyName("")}
+                        />
+                    )}
                 </div>
             )}
         </div>

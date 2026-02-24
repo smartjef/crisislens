@@ -49,14 +49,14 @@ export default function LeafletMap({
                 />
                 {/* County outlines for the 3 Lake Victoria focus counties */}
                 <GeoJSON
-                    key={`counties-${riskByCounty ? "loaded" : "loading"}`}
+                    key={`counties-${Object.keys(riskByCounty || {}).length}`}
                     data={focusCountiesGeoJSON}
                     style={geoJsonStyle}
                     onEachFeature={(feature, layer) => {
                         const countyName = feature.properties.adm1_name;
                         const risk = riskByCounty[countyName];
                         const riskLabel = risk?.riskType === "flood" ? "Flood" : "Drought";
-                        const percentage = risk ? `${risk.riskPercent}% affected` : "N/A";
+                        const percentage = risk ? `${risk.riskPercent}% affected` : "Data unavailable";
 
                         layer.bindTooltip(
                             `<strong>${countyName}</strong><br/>&#128167; ${riskLabel} &middot; ${percentage}`,
@@ -69,14 +69,15 @@ export default function LeafletMap({
                 />
                 {/* All 21 sub-county polygons across the 3 focus counties */}
                 <GeoJSON
-                    key={`areas-focus-${areaRiskByKey ? "loaded" : "loading"}`}
+                    key={`areas-focus-${Object.keys(areaRiskByKey || {}).length}`}
                     data={focusAreasGeoJSON}
                     style={areaGeoJsonStyle}
                     onEachFeature={(feature, layer) => {
                         const areaName = feature.properties.adm2_name;
                         const countyName = feature.properties.adm1_name;
                         const risk = areaRiskByKey[`${countyName}::${areaName}`];
-                        const percentage = risk ? `${risk.riskPercent}% affected` : "N/A";
+                        // Add logging to track why risk evaluates to N/A
+                        const percentage = risk?.riskPercent ? `${risk.riskPercent}% affected` : "Data unavailable";
 
                         layer.bindTooltip(
                             `<strong>${areaName}</strong><br/>Flood risk: ${percentage}`,
