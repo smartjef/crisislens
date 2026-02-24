@@ -1,14 +1,18 @@
 """Django settings for CrisisLens MVP."""
 from __future__ import annotations
 
+import environ
 from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "crisislens-mvp-secret-key"  # TODO: move to env var before production
-DEBUG = True
-ALLOWED_HOSTS: list[str] = ["*"]
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / ".env")
+
+SECRET_KEY = env("SECRET_KEY")
+DEBUG = env.bool("DEBUG", default=False)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
 INSTALLED_APPS = [
     # Django built-ins
@@ -59,10 +63,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "crisislens.wsgi.application"
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": env.db()
 }
 
 LANGUAGE_CODE = "en-us"
@@ -74,7 +75,7 @@ STATIC_URL = "/static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
-CORS_ALLOW_ALL_ORIGINS = True          # tighten to origins list before production
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 
 # ── Django REST Framework ────────────────────────────────────────────────────
 REST_FRAMEWORK = {
