@@ -9,6 +9,8 @@ from api import views
 router = DefaultRouter()
 router.register(r"counties", views.CountyViewSet, basename="county")
 router.register(r"sub-counties", views.SubCountyViewSet, basename="subcounty")
+router.register(r"alerts", views.FloodAlertViewSet, basename="alert")
+
 
 urlpatterns = [
     path("", include(router.urls)),

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from rest_framework import serializers
-from api.models import County, SubCounty, FloodObservation, FloodPrediction
+from api.models import County, SubCounty, FloodObservation, FloodPrediction, FloodAlert
 
 class DroughtPredictionRequest(serializers.Serializer):
     rainfall_deviation = serializers.FloatField(
@@ -202,3 +202,22 @@ class CountyDetailSerializer(serializers.ModelSerializer):
             sub.risk_category = pred.risk_category if pred else "Normal"
         subs.sort(key=lambda s: s.flood_probability, reverse=True)
         return SubCountyTopRiskSerializer(subs[:3], many=True).data
+
+
+class FloodAlertSerializer(serializers.ModelSerializer):
+    county_name = serializers.CharField(source="county.name", read_only=True)
+    sub_county_name = serializers.CharField(source="sub_county.name", read_only=True)
+    created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
+
+    class Meta:
+        model = FloodAlert
+        fields = [
+            "id", "county", "county_name", "sub_county", "sub_county_name",
+            "severity", "title", "description", "status",
+            "created_by", "created_by_name", "created_at",
+            "acknowledged_at", "acknowledged_by", "resolved_at"
+        ]
+        read_only_fields = [
+            "status", "created_by", "created_at",
+            "acknowledged_at", "acknowledged_by", "resolved_at"
+        ]

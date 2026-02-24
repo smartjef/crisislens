@@ -4,17 +4,22 @@ from __future__ import annotations
 import os
 
 import requests
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import PermissionDenied
 
-from api.models import County, SubCounty
+from api.models import County, SubCounty, FloodAlert, AuditLog
+from api.permissions import IsCountyOfficer, IsResponder, IsCountyMember, _NAT
 from api.serializers import (
     CountyListSerializer,
     CountyDetailSerializer,
     SubCountyListSerializer,
     SubCountyDetailSerializer,
+    FloodAlertSerializer,
 
     AIFeedbackRequest,
     AIFeedbackResponse,
@@ -239,3 +244,87 @@ class SubCountyViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 qs = qs.none()
         return qs
+
+
+class AlertPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class FloodAlertViewSet(viewsets.ModelViewSet):
+    serializer_class = FloodAlertSerializer
+    pagination_class = AlertPagination
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [IsAuthenticated(), IsCountyOfficer()]
+        elif self.action == "acknowledge":
+            return [IsAuthenticated(), IsResponder()]
+        elif self.action in ["resolve", "update", "partial_update", "destroy"]:
+            return [IsAuthenticated(), IsCountyOfficer(), IsCountyMember()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = FloodAlert.objects.select_related("county", "sub_county", "created_by").all()
+        user = self.request.user
+        role = getattr(user, "role", None)
+
+        # county_officer & responder only see their own county
+        if user.county_id and role not in _NAT:
+            qs = qs.filter(county_id=user.county_id)
+
+        county_id = self.request.query_params.get("county")
+        if county_id:
+            qs = qs.filter(county_id=county_id)
+            
+        severity = self.request.query_params.get("severity")
+        if severity:
+            qs = qs.filter(severity=severity)
+            
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+
+        return qs.order_by("-created_at")
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        role = getattr(user, "role", None)
+        county = serializer.validated_data.get("county")
+        
+        if role == "county_officer" and county.id != user.county_id:
+            raise PermissionDenied("You can only create alerts for your own county.")
+            
+        alert = serializer.save(created_by=user)
+        AuditLog.log(user, "Alert Created", alert)
+
+    @action(detail=True, methods=["patch"])
+    def acknowledge(self, request, pk=None):
+        alert = self.get_object()
+        if alert.status != "active":
+            return Response(
+                {"detail": "Alert is already acknowledged or resolved."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        alert.status = "acknowledged"
+        alert.acknowledged_at = timezone.now()
+        alert.acknowledged_by = request.user
+        alert.save(update_fields=["status", "acknowledged_at", "acknowledged_by"])
+        
+        AuditLog.log(request.user, "Alert Acknowledged", alert)
+        return Response(self.get_serializer(alert).data)
+
+    @action(detail=True, methods=["patch"])
+    def resolve(self, request, pk=None):
+        alert = self.get_object()
+        if alert.status == "resolved":
+            return Response({"detail": "Alert is already resolved."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        alert.status = "resolved"
+        alert.resolved_at = timezone.now()
+        alert.save(update_fields=["status", "resolved_at"])
+        
+        AuditLog.log(request.user, "Alert Resolved", alert)
+        return Response(self.get_serializer(alert).data)
