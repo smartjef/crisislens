@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from rest_framework import serializers
-from api.models import County, SubCounty, FloodObservation, FloodPrediction, FloodAlert
+from api.models import County, SubCounty, FloodObservation, FloodPrediction, FloodAlert, Report, AIChatMessage
 
 class DroughtPredictionRequest(serializers.Serializer):
     rainfall_deviation = serializers.FloatField(
@@ -48,6 +48,18 @@ class AIFeedbackResponse(serializers.Serializer):
     response = serializers.CharField()
 
 
+class AIChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIChatMessage
+        fields = ["id", "message", "is_ai", "timestamp"]
+
+
+class AIChatRequestSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    county = serializers.CharField(required=False, allow_blank=True)
+    area = serializers.CharField(required=False, allow_blank=True)
+
+
 class FloodObservationSerializer(serializers.ModelSerializer):
     class Meta:
         model = FloodObservation
@@ -58,11 +70,13 @@ class FloodObservationSerializer(serializers.ModelSerializer):
 
 
 class FloodPredictionSerializer(serializers.ModelSerializer):
+    source = serializers.CharField(source="observation.source", read_only=True)
+
     class Meta:
         model = FloodPrediction
         fields = [
             "flood_probability", "risk_category", "lead_time_days",
-            "confidence", "predicted_at"
+            "confidence", "predicted_at", "source"
         ]
 
 
@@ -104,10 +118,11 @@ class SubCountyListSerializer(serializers.ModelSerializer):
 class SubCountyDetailSerializer(SubCountyListSerializer):
     latest_prediction = serializers.SerializerMethodField()
     latest_observation = serializers.SerializerMethodField()
+    county_name = serializers.CharField(source="county.name", read_only=True)
 
     class Meta(SubCountyListSerializer.Meta):
         fields = SubCountyListSerializer.Meta.fields + [
-            "area_sqkm", "latest_prediction", "latest_observation"
+            "area_sqkm", "latest_prediction", "latest_observation", "county_name"
         ]
 
     def get_latest_prediction(self, obj):
@@ -221,3 +236,17 @@ class FloodAlertSerializer(serializers.ModelSerializer):
             "status", "created_by", "created_at",
             "acknowledged_at", "acknowledged_by", "resolved_at"
         ]
+
+class ReportSerializer(serializers.ModelSerializer):
+    county_name = serializers.CharField(source="county.name", read_only=True)
+    generated_by_name = serializers.CharField(source="generated_by.get_full_name", read_only=True)
+    report_type_display = serializers.CharField(source="get_report_type_display", read_only=True)
+
+    class Meta:
+        model = Report
+        fields = [
+            "id", "title", "report_type", "report_type_display", "county", "county_name",
+            "generated_by", "generated_by_name", "risk_summary",
+            "recommendations", "created_at"
+        ]
+        read_only_fields = ["generated_by", "created_at", "risk_summary", "recommendations"]

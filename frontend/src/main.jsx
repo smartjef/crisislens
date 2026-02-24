@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import AppRouter from './router/AppRouter.jsx';
+import App from './App.jsx';
 import AuthProvider from './providers/AuthProvider.jsx';
 import './index.css';
 import 'leaflet/dist/leaflet.css';
@@ -8,7 +8,7 @@ import 'leaflet/dist/leaflet.css';
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthProvider>
-      <AppRouter />
+      <App />
     </AuthProvider>
   </React.StrictMode>
 );
