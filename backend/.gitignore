@@ -2,5 +2,8 @@ env/
 .env*.pyc
 __pycache__/
 db.sqlite3
-
-#all .pyc files
+# Python cache
+*.pyc
+*.pyo
+*.pyd
+.env
