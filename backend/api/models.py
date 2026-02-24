@@ -136,3 +136,23 @@ class Report(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+class AIChatMessage(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    message = models.TextField()
+    is_ai = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["timestamp"]
+
+    def __str__(self) -> str:
+        sender = "AI" if self.is_ai else self.user.email
+        return f"{sender}: {self.message[:50]}..."
+
+class AIRequestLog(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.user.email} at {self.timestamp}"

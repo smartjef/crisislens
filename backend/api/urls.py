@@ -11,6 +11,8 @@ router.register(r"counties", views.CountyViewSet, basename="county")
 router.register(r"sub-counties", views.SubCountyViewSet, basename="subcounty")
 router.register(r"alerts", views.FloodAlertViewSet, basename="alert")
 router.register(r"reports", views.ReportViewSet, basename="report")
+router.register(r"ai/chat", views.AIChatViewSet, basename="ai-chat")
+router.register(r"ai/simulate", views.FloodSimulationViewSet, basename="ai-simulate")
 
 
 urlpatterns = [

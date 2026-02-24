@@ -240,34 +240,48 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Right side: Detail Panel (slides in if open) */}
-            {/* On Desktop it's absolute so the map always gets full width, but panel obscures it playfully */}
+            {/* Mobile Backdrop - only visible when panel is open on mobile */}
+            {isPanelOpen && (
+                <div
+                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] md:hidden animate-in fade-in duration-300"
+                    onClick={() => setSelectedAreaName("")}
+                />
+            )}
+
+            {/* Right side / Bottom: Detail Panel (slides in if open) */}
             <div className={`
-                fixed top-[64px] right-0 h-[calc(100vh-64px)] w-96 transform transition-transform duration-300 ease-in-out z-[100]
-                ${isPanelOpen ? "translate-x-0" : "translate-x-full"}
-                md:relative md:top-0 md:h-full md:z-10
+                fixed bottom-0 left-0 right-0 h-[60vh] w-full transform transition-transform duration-300 ease-out z-[100]
+                ${isPanelOpen ? "translate-y-0" : "translate-y-full"}
+                md:relative md:top-0 md:h-full md:w-96 md:translate-y-0
+                md:transform-none
             `}>
-                {isPanelOpen && (
-                    <div className="w-full h-full rounded-2xl overflow-hidden shadow-xl border border-slate-200 bg-white">
-                        {subCountiesError ? (
-                            <div className="h-full p-4">
-                                <ErrorCard message="Failed to load sub-county data." onRetry={refetchSubCounties} />
-                            </div>
-                        ) : subCountiesLoading ? (
-                            <div className="w-full h-full flex flex-col gap-4 p-6">
-                                <Skeleton className="h-24 w-full rounded-xl" />
-                                <Skeleton className="flex-1 w-full rounded-xl" />
-                            </div>
-                        ) : (
-                            <SubCountyPanel
-                                county={panelCountyObj}
-                                areaRiskEntry={selectedAreaObj}
-                                topAreas={topAreas}
-                                onClose={() => setSelectedAreaName("")}
-                            />
-                        )}
-                    </div>
-                )}
+                <div className={`
+                    w-full h-full transform transition-transform duration-300 ease-out
+                    md:transform md:transition-transform md:duration-300
+                    ${isPanelOpen ? "md:translate-x-0" : "md:translate-x-full"}
+                `}>
+                    {isPanelOpen && (
+                        <div className="w-full h-full rounded-t-[2.5rem] md:rounded-2xl overflow-hidden shadow-2xl border-t border-x md:border border-slate-200 bg-white">
+                            {subCountiesError ? (
+                                <div className="h-full p-4">
+                                    <ErrorCard message="Failed to load sub-county data." onRetry={refetchSubCounties} />
+                                </div>
+                            ) : subCountiesLoading ? (
+                                <div className="w-full h-full flex flex-col gap-4 p-6">
+                                    <Skeleton className="h-24 w-full rounded-xl" />
+                                    <Skeleton className="flex-1 w-full rounded-xl" />
+                                </div>
+                            ) : (
+                                <SubCountyPanel
+                                    county={panelCountyObj}
+                                    areaRiskEntry={selectedAreaObj}
+                                    topAreas={topAreas}
+                                    onClose={() => setSelectedAreaName("")}
+                                />
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

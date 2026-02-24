@@ -13,7 +13,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import PermissionDenied
 
 from django.http import HttpResponse
-from api.models import County, SubCounty, FloodAlert, AuditLog, Report
+from api.models import County, SubCounty, FloodAlert, AuditLog, Report, AIChatMessage, AIRequestLog
 from api.permissions import IsCountyOfficer, IsResponder, IsCountyMember, _NAT, IsAnalyst
 from api.serializers import (
     CountyListSerializer,
@@ -29,6 +29,8 @@ from api.serializers import (
     DroughtPredictionResponse,
     FloodPredictionRequest,
     FloodPredictionResponse,
+    AIChatMessageSerializer,
+    AIChatRequestSerializer,
 )
 from api.services import FLOOD_INDICATORS, score_drought, score_flood
 
@@ -167,6 +169,105 @@ def ai_feedback(request):
     return Response(output.data, status=status.HTTP_200_OK)
 
 
+class AIChatViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        # Fetch last 20 messages for this user
+        messages = AIChatMessage.objects.filter(user=request.user).order_by("-timestamp")[:20]
+        serializer = AIChatMessageSerializer(reversed(list(messages)), many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        # 1. Rate Limiting (10/hr)
+        hour_ago = timezone.now() - timezone.timedelta(hours=1)
+        count = AIRequestLog.objects.filter(user=request.user, timestamp__gte=hour_ago).count()
+        if count >= 10:
+            return Response(
+                {"error": "AI Rate Limit Exceeded: 10 requests per hour. Please wait."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
+        serializer = AIChatRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+
+        # Log hit
+        AIRequestLog.objects.create(user=request.user)
+
+        # Save user message
+        AIChatMessage.objects.create(user=request.user, message=payload["message"], is_ai=False)
+
+        # 2. Extract Context
+        role = getattr(request.user, 'role', 'analyst')
+        county = payload.get("county") or "National"
+        area = payload.get("area") or "General"
+        
+        # Build prompt instructions based on role
+        if role == 'responder':
+            role_focus = "Focus on tactical evacuation safety, immediate responder procedures, and field logistics."
+        elif role == 'analyst':
+            role_focus = "Focus on deep technical data, hydrological trends, and predictive modeling assumptions."
+        else:
+            role_focus = "Provide a high-level situational overview and safety guidance."
+
+        history_msgs = AIChatMessage.objects.filter(user=request.user).order_by("-timestamp")[1:6]
+        history_text = "\n".join([f"{'AI' if m.is_ai else 'User'}: {m.message}" for m in reversed(list(history_msgs))])
+
+        prompt = (
+            f"Role: {role}. {role_focus}\n"
+            f"Context: County={county}, Sub-county={area}.\n"
+            f"History:\n{history_text}\n"
+            f"Question: {payload['message']}"
+        )
+
+        # 3. Request logic (Call existing feedback logic or direct)
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            ai_response = _fallback_ai_response({**payload, "risk_type": "flood", "question": payload["message"]})
+        else:
+            try:
+                res = requests.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {"role": "system", "content": "You are CrisisLens, an AI decision support assistant."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": 0.7,
+                    },
+                    timeout=20
+                )
+                if res.status_code == 200:
+                    ai_response = res.json()["choices"][0]["message"]["content"]
+                else:
+                    ai_response = f"AI Service Error: {res.text[:100]}"
+            except Exception as e:
+                ai_response = f"Connection failed: {str(e)}"
+
+        # Save AI response
+        ai_msg = AIChatMessage.objects.create(user=request.user, message=ai_response, is_ai=True)
+        return Response(AIChatMessageSerializer(ai_msg).data, status=status.HTTP_201_CREATED)
+
+
+class FloodSimulationViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request):
+        serializer = FloodPredictionRequest(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Calculate simulation
+        result = score_flood(**serializer.validated_data)
+        
+        return Response({
+            "simulated": result,
+            "inputs": serializer.validated_data
+        })
+
+
 class CountyViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -184,6 +285,60 @@ class CountyViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 qs = qs.none()
         return qs
+
+    @action(detail=False, methods=["get"])
+    def stats(self, request):
+        from django.db.models import Avg, Sum, OuterRef, Subquery
+        from api.models import FloodPrediction
+
+        # 1. Active Alerts
+        active_alerts = FloodAlert.objects.filter(status="active").count()
+
+        # 2. Latest predictions subquery
+        latest_preds = FloodPrediction.objects.filter(
+            sub_county=OuterRef("pk")
+        ).order_by("-predicted_at")
+
+        # 3. High Risk Analysis
+        high_risk_subs = SubCounty.objects.annotate(
+            latest_prob=Subquery(latest_preds.values("flood_probability")[:1])
+        ).filter(latest_prob__gte=75)
+
+        high_risk_count = high_risk_subs.count()
+        pop_at_risk = high_risk_subs.aggregate(total=Sum("population"))["total"] or 0
+
+        # 4. Avg Lead Time
+        avg_lead = SubCounty.objects.annotate(
+            latest_lead=Subquery(latest_preds.values("lead_time_days")[:1])
+        ).aggregate(avg=Avg("latest_lead"))["avg"] or 0
+
+        return Response({
+            "active_alerts": active_alerts,
+            "high_risk_count": high_risk_count,
+            "pop_at_risk": pop_at_risk,
+            "avg_lead_time": round(float(avg_lead), 1)
+        })
+
+    @action(detail=False, methods=["get"])
+    def trend(self, request):
+        from api.models import FloodPrediction
+        counties = County.objects.all()
+        data = []
+        
+        # Get last 30 predictions grouped by date for each county
+        for county in counties:
+            preds = FloodPrediction.objects.filter(
+                sub_county__county=county
+            ).order_by("-predicted_at")[:30]
+            
+            for p in reversed(list(preds)):
+                data.append({
+                    "date": p.predicted_at.isoformat(),
+                    "probability": p.flood_probability,
+                    "county": county.name
+                })
+        
+        return Response(data)
 
     @action(detail=True, methods=["get"])
     def risk(self, request, pk=None):

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from rest_framework import serializers
-from api.models import County, SubCounty, FloodObservation, FloodPrediction, FloodAlert, Report
+from api.models import County, SubCounty, FloodObservation, FloodPrediction, FloodAlert, Report, AIChatMessage
 
 class DroughtPredictionRequest(serializers.Serializer):
     rainfall_deviation = serializers.FloatField(
@@ -48,6 +48,18 @@ class AIFeedbackResponse(serializers.Serializer):
     response = serializers.CharField()
 
 
+class AIChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIChatMessage
+        fields = ["id", "message", "is_ai", "timestamp"]
+
+
+class AIChatRequestSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    county = serializers.CharField(required=False, allow_blank=True)
+    area = serializers.CharField(required=False, allow_blank=True)
+
+
 class FloodObservationSerializer(serializers.ModelSerializer):
     class Meta:
         model = FloodObservation
@@ -58,11 +70,13 @@ class FloodObservationSerializer(serializers.ModelSerializer):
 
 
 class FloodPredictionSerializer(serializers.ModelSerializer):
+    source = serializers.CharField(source="observation.source", read_only=True)
+
     class Meta:
         model = FloodPrediction
         fields = [
             "flood_probability", "risk_category", "lead_time_days",
-            "confidence", "predicted_at"
+            "confidence", "predicted_at", "source"
         ]
 
 
@@ -104,10 +118,11 @@ class SubCountyListSerializer(serializers.ModelSerializer):
 class SubCountyDetailSerializer(SubCountyListSerializer):
     latest_prediction = serializers.SerializerMethodField()
     latest_observation = serializers.SerializerMethodField()
+    county_name = serializers.CharField(source="county.name", read_only=True)
 
     class Meta(SubCountyListSerializer.Meta):
         fields = SubCountyListSerializer.Meta.fields + [
-            "area_sqkm", "latest_prediction", "latest_observation"
+            "area_sqkm", "latest_prediction", "latest_observation", "county_name"
         ]
 
     def get_latest_prediction(self, obj):

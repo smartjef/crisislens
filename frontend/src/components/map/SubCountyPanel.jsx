@@ -1,13 +1,25 @@
-import React, { useEffect, useState } from "react";
-import { Clock, Droplets, TriangleAlert, Waves, X, ExternalLink, Bot } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
+import { Clock, Droplets, TriangleAlert, Waves, X, ExternalLink, Bot, MousePointer2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import Skeleton from "../ui/Skeleton";
 
 export default function SubCountyPanel({ county, areaRiskEntry, topAreas, onClose }) {
     const navigate = useNavigate();
+    const panelRef = useRef(null);
     const [details, setDetails] = useState(null);
     const [loading, setLoading] = useState(false);
+
+    // Accessibility: Auto-focus and ESC support
+    useEffect(() => {
+        panelRef.current?.focus();
+
+        const handleKeyDown = (e) => {
+            if (e.key === "Escape") onClose();
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [onClose]);
 
     // Fetch deep details on open
     useEffect(() => {
@@ -25,12 +37,23 @@ export default function SubCountyPanel({ county, areaRiskEntry, topAreas, onClos
     };
 
     return (
-        <div className="w-96 bg-white border-l border-slate-200 shadow-2xl flex flex-col h-full transform transition-transform duration-300 ease-in-out translate-x-0">
+        <div
+            ref={panelRef}
+            tabIndex={-1}
+            className="w-full md:w-96 bg-white border-l border-slate-200 flex flex-col h-full outline-none"
+            role="dialog"
+            aria-labelledby="panel-title"
+        >
+            {/* Mobile Drag Handle */}
+            <div className="md:hidden flex justify-center pt-3 pb-1 bg-slate-50">
+                <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            </div>
+
             <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50 relative">
                 <div>
-                    <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">{county?.name || "County"} District</p>
-                    <h2 className="text-2xl font-bold text-slate-800 leading-tight pr-8">
-                        {areaRiskEntry?.name || "Select an Area"}
+                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-3">Tactical Detail &middot; {county?.name}</p>
+                    <h2 id="panel-title" className="text-3xl font-black text-slate-800 leading-none tracking-tighter pr-8">
+                        {areaRiskEntry?.name}
                     </h2>
 
                     {areaRiskEntry && (

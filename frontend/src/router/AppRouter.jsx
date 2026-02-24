@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import AppShell from '../layouts/AppShell';
-import App from '../App'; // The legacy Map component
+import MapPage from '../pages/MapPage';
 
 // Auth & Guards
 import PrivateRoute from './PrivateRoute';
@@ -32,7 +32,7 @@ export default function AppRouter() {
                 {/* Secure App Shell Routes */}
                 <Route element={<AppShell />}>
                     {/* The any-auth map route */}
-                    <Route path="/map" element={<PrivateRoute><App /></PrivateRoute>} />
+                    <Route path="/map" element={<PrivateRoute><MapPage /></PrivateRoute>} />
                     <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
                     <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
 

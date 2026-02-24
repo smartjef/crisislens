@@ -1,8 +1,8 @@
 import React from "react";
-import MapPage from "./pages/MapPage";
+import AppRouter from "./router/AppRouter";
 
 function App() {
-  return <MapPage />;
+  return <AppRouter />;
 }
 
 export default App;
