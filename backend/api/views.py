@@ -4,12 +4,18 @@ from __future__ import annotations
 import os
 
 import requests
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import status, viewsets
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from api.models import County, SubCounty
 from api.serializers import (
+    CountyListSerializer,
+    CountyDetailSerializer,
+    SubCountyListSerializer,
+    SubCountyDetailSerializer,
+
     AIFeedbackRequest,
     AIFeedbackResponse,
     DroughtPredictionRequest,
@@ -152,3 +158,84 @@ def ai_feedback(request):
     message = data["choices"][0]["message"]["content"]
     output = AIFeedbackResponse({"response": message})
     return Response(output.data, status=status.HTTP_200_OK)
+
+
+class CountyViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return CountyListSerializer
+        return CountyDetailSerializer
+
+    def get_queryset(self):
+        qs = County.objects.prefetch_related("sub_counties__floodprediction_set").all()
+        user = self.request.user
+        if getattr(user, "role", None) == "county_officer":
+            if user.county_id:
+                qs = qs.filter(id=user.county_id)
+            else:
+                qs = qs.none()
+        return qs
+
+    @action(detail=True, methods=["get"])
+    def risk(self, request, pk=None):
+        county = self.get_object()
+        subs = list(county.sub_counties.all())
+        
+        max_prob = 0.0
+        min_lead = 7
+        cats = []
+        conf = 0.0
+        latest_time = None
+        
+        for sub in subs:
+            pred = sub.floodprediction_set.order_by("-predicted_at").first()
+            if pred:
+                max_prob = max(max_prob, pred.flood_probability)
+                min_lead = min(min_lead, pred.lead_time_days)
+                conf = max(conf, pred.confidence)
+                cats.append(pred.risk_category)
+                if not latest_time or pred.predicted_at > latest_time:
+                    latest_time = pred.predicted_at
+                    
+        if max_prob >= 75 or "High" in cats:
+            cat = "High"
+        elif max_prob >= 50 or "Moderate" in cats:
+            cat = "Moderate"
+        elif cats:
+            cat = "Low"
+        else:
+            cat = "Normal"
+            
+        return Response({
+            "flood_probability": max_prob,
+            "risk_category": cat,
+            "lead_time_days": min_lead,
+            "confidence": conf,
+            "predicted_at": latest_time.isoformat() if latest_time else None,
+        })
+
+
+class SubCountyViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return SubCountyListSerializer
+        return SubCountyDetailSerializer
+
+    def get_queryset(self):
+        qs = SubCounty.objects.prefetch_related("floodprediction_set", "floodobservation_set").all()
+        
+        county_id = self.request.query_params.get("county")
+        if county_id:
+            qs = qs.filter(county_id=county_id)
+            
+        user = self.request.user
+        if getattr(user, "role", None) == "county_officer":
+            if user.county_id:
+                qs = qs.filter(county_id=user.county_id)
+            else:
+                qs = qs.none()
+        return qs

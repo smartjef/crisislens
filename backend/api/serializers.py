@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from rest_framework import serializers
-
+from api.models import County, SubCounty, FloodObservation, FloodPrediction
 
 class DroughtPredictionRequest(serializers.Serializer):
     rainfall_deviation = serializers.FloatField(
@@ -46,3 +46,159 @@ class AIFeedbackRequest(serializers.Serializer):
 
 class AIFeedbackResponse(serializers.Serializer):
     response = serializers.CharField()
+
+
+class FloodObservationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FloodObservation
+        fields = [
+            "rainfall_accumulation", "soil_moisture", "elevation",
+            "past_flood_occurrence", "observed_at", "source"
+        ]
+
+
+class FloodPredictionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FloodPrediction
+        fields = [
+            "flood_probability", "risk_category", "lead_time_days",
+            "confidence", "predicted_at"
+        ]
+
+
+class SubCountyListSerializer(serializers.ModelSerializer):
+    flood_probability = serializers.SerializerMethodField()
+    risk_category = serializers.SerializerMethodField()
+    lead_time_days = serializers.SerializerMethodField()
+    confidence = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubCounty
+        fields = [
+            "id", "name", "population", "flood_probability",
+            "risk_category", "lead_time_days", "confidence"
+        ]
+
+    def _get_latest_pred(self, obj):
+        if not hasattr(obj, "_latest_pred"):
+            obj._latest_pred = obj.floodprediction_set.order_by("-predicted_at").first()
+        return obj._latest_pred
+
+    def get_flood_probability(self, obj):
+        pred = self._get_latest_pred(obj)
+        return pred.flood_probability if pred else 0.0
+
+    def get_risk_category(self, obj):
+        pred = self._get_latest_pred(obj)
+        return pred.risk_category if pred else "Normal"
+
+    def get_lead_time_days(self, obj):
+        pred = self._get_latest_pred(obj)
+        return pred.lead_time_days if pred else 7
+
+    def get_confidence(self, obj):
+        pred = self._get_latest_pred(obj)
+        return pred.confidence if pred else 0.0
+
+
+class SubCountyDetailSerializer(SubCountyListSerializer):
+    latest_prediction = serializers.SerializerMethodField()
+    latest_observation = serializers.SerializerMethodField()
+
+    class Meta(SubCountyListSerializer.Meta):
+        fields = SubCountyListSerializer.Meta.fields + [
+            "area_sqkm", "latest_prediction", "latest_observation"
+        ]
+
+    def get_latest_prediction(self, obj):
+        prediction = obj.floodprediction_set.order_by("-predicted_at").first()
+        return FloodPredictionSerializer(prediction).data if prediction else None
+
+    def get_latest_observation(self, obj):
+        observation = obj.floodobservation_set.order_by("-observed_at").first()
+        return FloodObservationSerializer(observation).data if observation else None
+
+
+class SubCountyTopRiskSerializer(serializers.ModelSerializer):
+    flood_probability = serializers.FloatField(read_only=True)
+    risk_category = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = SubCounty
+        fields = ["id", "name", "flood_probability", "risk_category"]
+
+
+class CountyListSerializer(serializers.ModelSerializer):
+    flood_probability = serializers.SerializerMethodField()
+    risk_category = serializers.SerializerMethodField()
+    lead_time_days = serializers.SerializerMethodField()
+
+    class Meta:
+        model = County
+        fields = [
+            "id", "name", "code", "population",
+            "flood_probability", "risk_category", "lead_time_days"
+        ]
+
+    def _get_aggregated(self, obj):
+        if hasattr(obj, "_aggregated_risk"):
+            return obj._aggregated_risk
+            
+        subs = list(obj.sub_counties.all())
+        max_prob = 0.0
+        min_lead = 7
+        cats = []
+        
+        for sub in subs:
+            pred = sub.floodprediction_set.order_by("-predicted_at").first()
+            if pred:
+                max_prob = max(max_prob, pred.flood_probability)
+                min_lead = min(min_lead, pred.lead_time_days)
+                cats.append(pred.risk_category)
+                
+        if max_prob >= 75 or "High" in cats:
+            cat = "High"
+        elif max_prob >= 50 or "Moderate" in cats:
+            cat = "Moderate"
+        elif cats:
+            cat = "Low"
+        else:
+            cat = "Normal"
+            
+        obj._aggregated_risk = {
+            "flood_probability": max_prob,
+            "risk_category": cat,
+            "lead_time_days": min_lead,
+        }
+        return obj._aggregated_risk
+
+    def get_flood_probability(self, obj):
+        return self._get_aggregated(obj)["flood_probability"]
+
+    def get_risk_category(self, obj):
+        return self._get_aggregated(obj)["risk_category"]
+
+    def get_lead_time_days(self, obj):
+        return self._get_aggregated(obj)["lead_time_days"]
+
+
+class CountyDetailSerializer(serializers.ModelSerializer):
+    top_sub_counties = serializers.SerializerMethodField()
+
+    class Meta:
+        model = County
+        fields = [
+            "id", "name", "code", "region", "population",
+            "centroid_lat", "centroid_lon", "top_sub_counties"
+        ]
+
+    def get_top_sub_counties(self, obj):
+        # We assume the queryset passed to this serializer has prefetched predictions,
+        # but for simplicity we can query directly or rely on the view's query.
+        subs = list(obj.sub_counties.all())
+        for sub in subs:
+            pred = sub.floodprediction_set.order_by("-predicted_at").first()
+            sub.flood_probability = pred.flood_probability if pred else 0.0
+            sub.risk_category = pred.risk_category if pred else "Normal"
+        subs.sort(key=lambda s: s.flood_probability, reverse=True)
+        return SubCountyTopRiskSerializer(subs[:3], many=True).data
