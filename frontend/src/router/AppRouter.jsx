@@ -12,7 +12,8 @@ import DashboardRouter from './DashboardRouter';
 import LoginPage from '../pages/LoginPage';
 import { UnauthorizedPage, NotFoundPage } from '../pages/ErrorPages';
 import { NationalOpsDashboard, CountyDashboard, ResponderDashboard, AnalystDashboard } from '../pages/Dashboards';
-import { AlertsPage, AlertDetailPage, ReportsPage, SettingsPage, AdminPage } from '../pages/GenericPages';
+import { AlertsPage, AlertDetailPage, ReportsPage, AdminPage } from '../pages/GenericPages';
+import SettingsPage from '../pages/SettingsPage';
 import { ProfilePage } from '../pages/ProfilePage';
 
 export default function AppRouter() {

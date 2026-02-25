@@ -222,7 +222,7 @@ export function AlertDetailPage() {
             </Button>
 
             <Card className={`border-t-4 shadow-xl overflow-hidden ${alert.severity === 'critical' ? 'border-red-600 border-red-200' :
-                    alert.severity === 'high' ? 'border-amber-500 border-amber-200' : 'border-blue-600 border-blue-200'
+                alert.severity === 'high' ? 'border-amber-500 border-amber-200' : 'border-blue-600 border-blue-200'
                 }`}>
                 <CardHeader className="p-8 bg-white dark:bg-slate-800">
                     <div className="flex flex-col md:flex-row justify-between items-start gap-4">
@@ -620,38 +620,6 @@ export function ReportsPage() {
     );
 }
 
-export function SettingsPage() {
-    usePageTitle('Settings');
-    return (
-        <div className="p-6 max-w-4xl mx-auto space-y-6">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">Account Settings</h2>
-            <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="border-b bg-slate-50">
-                    <CardTitle className="flex items-center gap-2"><Settings className="w-5 h-5" /> Preferences</CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                    <div className="flex justify-between items-center pb-4 border-b">
-                        <div>
-                            <h4 className="font-semibold text-slate-800">Email Notifications</h4>
-                            <p className="text-sm text-slate-500">Receive alerts and daily summaries via email.</p>
-                        </div>
-                        <input type="checkbox" defaultChecked className="w-5 h-5 accent-blue-600" />
-                    </div>
-                    <div className="flex justify-between items-center pb-4 border-b">
-                        <div>
-                            <h4 className="font-semibold text-slate-800">SMS Alerts</h4>
-                            <p className="text-sm text-slate-500">Critical notifications sent to your registered phone number.</p>
-                        </div>
-                        <input type="checkbox" defaultChecked className="w-5 h-5 accent-blue-600" />
-                    </div>
-                    <div className="pt-2">
-                        <Button className="bg-slate-800 text-white">Save Preferences</Button>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-    );
-}
 
 export function AdminPage() {
     usePageTitle('Admin Panel');

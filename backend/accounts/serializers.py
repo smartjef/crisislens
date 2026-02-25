@@ -47,7 +47,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Read-only user profile returned by GET /api/auth/me/."""
+    """
+    User profile info.
+    GET   → returns profile
+    PATCH → updates editable fields (first_name, last_name, phone, organization)
+    """
 
     county_name = serializers.StringRelatedField(source="county", read_only=True)
     full_name   = serializers.SerializerMethodField()
@@ -60,11 +64,31 @@ class UserSerializer(serializers.ModelSerializer):
             "first_name", "last_name", "full_name",
             "role", "county_id", "county_name",
             "phone", "organization", "permissions",
+            "date_joined",
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            "id", "email", "username", "full_name",
+            "role", "county_id", "county_name", "permissions",
+            "date_joined",
+        ]
 
     def get_full_name(self, obj: User) -> str:
         return obj.get_full_name() or obj.username
 
     def get_permissions(self, obj: User) -> list[str]:
         return get_user_permissions(obj)
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """
+    Serializer for password change.
+    Validates that the new passwords match.
+    """
+    current_password = serializers.CharField(required=True)
+    new_password     = serializers.CharField(required=True)
+    confirm_password = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "New passwords do not match."})
+        return attrs
