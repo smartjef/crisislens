@@ -14,7 +14,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .serializers import MyTokenObtainPairSerializer, UserSerializer
+from .serializers import MyTokenObtainPairSerializer, UserSerializer, ChangePasswordSerializer
 
 
 class LoginView(TokenObtainPairView):
@@ -48,11 +48,37 @@ class LogoutView(APIView):
 
 class MeView(APIView):
     """
-    GET /api/auth/me/
-    Returns the authenticated user's profile.
-    Requires: Authorization: Bearer <access_token>
+    GET   → Returns the authenticated user's profile.
+    PATCH → Updates the authenticated user's profile.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)
+
+    def patch(self, request):
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+
+
+class ChangePasswordView(APIView):
+    """
+    POST /api/auth/change-password/
+    Body: { "current_password": "...", "new_password": "...", "confirm_password": "..." }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            if not user.check_password(serializer.data.get("current_password")):
+                return Response({"current_password": ["Incorrect current password."]}, status=400)
+
+            user.set_password(serializer.data.get("new_password"))
+            user.save()
+            return Response({"detail": "Password changed successfully."})
+        return Response(serializer.errors, status=400)

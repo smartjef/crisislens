@@ -42,4 +42,7 @@ export const useAuthStore = create((set) => ({
 
     /** Called by the Axios 401 interceptor after a silent token refresh. */
     setAccessToken: (accessToken) => set({ accessToken }),
+
+    /** Updates the user profile data in the store. */
+    setUser: (user) => set({ user }),
 }));
