@@ -33,7 +33,7 @@ export default function SubCountyPanel({ county, areaRiskEntry, topAreas, onClos
 
     const handleAskAI = () => {
         if (!county || !areaRiskEntry) return;
-        navigate(`/dashboard/analyst?county=${county.name}&area=${areaRiskEntry.name}`);
+        navigate(`/crisis-ai?county=${county.name}&area=${areaRiskEntry.name}`);
     };
 
     return (

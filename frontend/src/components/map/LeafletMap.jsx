@@ -13,6 +13,7 @@ export default function LeafletMap({
     mapInstance,
     setMapInstance,
     selectedCounties = [],
+    selectedArea = null,
 }) {
     // Automatically fit map bounds when county selection changes
     useEffect(() => {
@@ -55,12 +56,13 @@ export default function LeafletMap({
         const areaName = feature.properties.adm2_name;
         const countyName = feature.properties.adm1_name;
         const risk = areaRiskByKey[`${countyName}::${areaName}`];
+        const isSelected = areaName === selectedArea;
 
         return {
             fillColor: getFloodFillColor(risk?.riskPercent || 40),
-            fillOpacity: 0.78,
-            color: "#1e3a8a",
-            weight: 1,
+            fillOpacity: isSelected ? 0.95 : 0.78,
+            color: isSelected ? "#facc15" : "#1e3a8a",
+            weight: isSelected ? 3 : 1,
         };
     };
 
@@ -115,7 +117,7 @@ export default function LeafletMap({
                 {/* Draw sub-county polygons ONLY for the selected counties */}
                 {selectedCounties.length > 0 && (
                     <GeoJSON
-                        key={`areas-${selectedCounties.join(",")}-${Object.keys(areaRiskByKey || {}).length}`}
+                        key={`areas-${selectedCounties.join(",")}-${Object.keys(areaRiskByKey || {}).length}-${selectedArea}`}
                         data={filteredAreasGeoJSON}
                         style={areaGeoJsonStyle}
                         onEachFeature={(feature, layer) => {

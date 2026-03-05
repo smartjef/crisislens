@@ -14,6 +14,7 @@ import { UnauthorizedPage, NotFoundPage } from '../pages/ErrorPages';
 import { NationalOpsDashboard, CountyDashboard, ResponderDashboard, AnalystDashboard } from '../pages/Dashboards';
 import { AlertsPage, AlertDetailPage, ReportsPage, SettingsPage, AdminPage } from '../pages/GenericPages';
 import { ProfilePage } from '../pages/ProfilePage';
+import CrisisLensAI from '../pages/CrisisLensAI';
 
 export default function AppRouter() {
     return (
@@ -38,6 +39,8 @@ export default function AppRouter() {
 
                     {/* Dashboard Routing Gateway */}
                     <Route path="/dashboard" element={<PrivateRoute><DashboardRouter /></PrivateRoute>} />
+
+                    <Route path="/crisis-ai" element={<PrivateRoute><CrisisLensAI /></PrivateRoute>} />
 
                     {/* Role-specific Dashboards */}
                     <Route
