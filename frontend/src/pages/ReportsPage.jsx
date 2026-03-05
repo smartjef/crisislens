@@ -440,7 +440,7 @@ function AIPanel({ region, onToast }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer KEY_HERE"
+          "Authorization": `Bearer ${import.meta.env.VITE_API_TOKEN}`
         },
         body: JSON.stringify({
           model: "gpt-4o",
