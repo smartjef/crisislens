@@ -1,59 +1,137 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import client from '../../api/client';
-import Card, { CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { CardContent } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { ShieldAlert, MapPin, Users, Clock, ArrowRight, TrendingUp, Plus } from 'lucide-react';
+import { ShieldAlert, MapPin, Users, Clock, ArrowRight, TrendingUp, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AlertCreateModal from '../../components/alerts/AlertCreateModal';
-import { useAlertStore } from '../../store/useAlertStore';
 
+/* ── Shared dark panel ─────────────────────────────────────────── */
+function Panel({ title, action, children, className = '' }) {
+    return (
+        <div className={`bg-surface-raised border border-surface-border rounded ${className}`}>
+            {(title || action) && (
+                <div className="flex items-center justify-between px-5 py-3 border-b border-surface-border">
+                    {title && <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{title}</span>}
+                    {action}
+                </div>
+            )}
+            {children}
+        </div>
+    );
+}
+
+/* ── KPI metric card ─────────────────────────────────────────────── */
+function KPI({ title, value, icon: Icon, accent = 'flood' }) {
+    const accentMap = {
+        flood:  { icon: 'text-flood-400',   bar: 'bg-flood-900/40',  border: 'border-flood-800/40' },
+        red:    { icon: 'text-red-400',      bar: 'bg-red-900/30',    border: 'border-red-800/30' },
+        amber:  { icon: 'text-amber-400',    bar: 'bg-amber-900/30',  border: 'border-amber-800/30' },
+        indigo: { icon: 'text-indigo-400',   bar: 'bg-indigo-900/30', border: 'border-indigo-800/30' },
+    };
+    const c = accentMap[accent] || accentMap.flood;
+    return (
+        <div className={`bg-surface-raised border border-surface-border rounded p-5 flex items-start justify-between`}>
+            <div>
+                <p className="text-[10px] uppercase tracking-widest font-semibold text-slate-600 mb-2">{title}</p>
+                <p className="text-3xl font-semibold text-slate-100 tabular-nums font-mono">{value ?? '—'}</p>
+            </div>
+            <div className={`p-2 rounded border ${c.bar} ${c.border}`}>
+                <Icon size={16} className={c.icon} />
+            </div>
+        </div>
+    );
+}
+
+/* ── Risk bar ──────────────────────────────────────────────────────── */
+function RiskBar({ value }) {
+    const color = value >= 75 ? 'bg-red-500' : value >= 50 ? 'bg-amber-500' : 'bg-flood-500';
+    return (
+        <div className="flex items-center gap-3">
+            <div className="w-24 h-1.5 bg-surface rounded-full overflow-hidden">
+                <div className={`h-full ${color} transition-all duration-700`} style={{ width: `${value}%` }} />
+            </div>
+            <span className="text-xs font-mono text-slate-400 tabular-nums w-8">{value}%</span>
+        </div>
+    );
+}
+
+/* ── Severity chip ─────────────────────────────────────────────────── */
+function SeverityChip({ severity }) {
+    const map = {
+        critical: 'text-red-400 bg-red-900/20 border-red-800/30',
+        high:     'text-amber-400 bg-amber-900/20 border-amber-800/30',
+        medium:   'text-flood-400 bg-flood-900/20 border-flood-800/30',
+        low:      'text-emerald-400 bg-emerald-900/20 border-emerald-800/30',
+    };
+    return (
+        <span className={`text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${map[severity] || map.low}`}>
+            {severity}
+        </span>
+    );
+}
+
+/* ── Sort header ──────────────────────────────────────────────────── */
+function SortTh({ label, sortKey, sortConfig, onSort, className = '' }) {
+    const active = sortConfig.key === sortKey;
+    return (
+        <th
+            className={`px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-600 cursor-pointer hover:text-slate-300 select-none ${className}`}
+            onClick={() => onSort(sortKey)}
+        >
+            <span className="flex items-center gap-1">
+                {label}
+                {active
+                    ? sortConfig.direction === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />
+                    : <ChevronsUpDown size={11} className="opacity-30" />
+                }
+            </span>
+        </th>
+    );
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
 export default function NationalOpsDashboard() {
-    usePageTitle('National Operations - CrisisLens');
-    const [stats, setStats] = useState(null);
-    const [trendData, setTrendData] = useState([]);
+    usePageTitle('National Operations Center');
+    const [stats,        setStats]        = useState(null);
+    const [trendData,    setTrendData]    = useState([]);
     const [countiesData, setCountiesData] = useState([]);
     const [recentAlerts, setRecentAlerts] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [sortConfig, setSortConfig] = useState({ key: 'flood_probability', direction: 'desc' });
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [loading,      setLoading]      = useState(true);
+    const [sortConfig,   setSortConfig]   = useState({ key: 'flood_probability', direction: 'desc' });
+    const [modalOpen,    setModalOpen]    = useState(false);
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
+    useEffect(() => { fetchAll(); }, []);
 
-    const fetchDashboardData = async () => {
+    const fetchAll = async () => {
         setLoading(true);
         try {
-            const [statsRes, trendRes, countiesRes, alertsRes] = await Promise.all([
+            const [s, t, c, a] = await Promise.all([
                 client.get('/api/counties/stats/'),
                 client.get('/api/counties/trend/'),
                 client.get('/api/counties/'),
-                client.get('/api/alerts/?limit=10')
+                client.get('/api/alerts/?limit=10'),
             ]);
-            setStats(statsRes.data);
-            setTrendData(trendRes.data);
-            setCountiesData(countiesRes.data);
-            setRecentAlerts(alertsRes.data.results || alertsRes.data);
+            setStats(s.data);
+            setTrendData(t.data);
+            setCountiesData(c.data);
+            setRecentAlerts(a.data.results || a.data);
         } catch (e) {
-            console.error("Failed to load national dashboard", e);
+            console.error('Failed to load national dashboard', e);
         } finally {
             setLoading(false);
         }
     };
 
-    const sortedTableData = useMemo(() => {
-        let items = [...countiesData];
+    const sortedCounties = useMemo(() => {
+        const items = [...countiesData];
         if (sortConfig.key) {
             items.sort((a, b) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (a[sortConfig.key] > b[sortConfig.key]) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
+                if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
             });
         }
@@ -63,15 +141,14 @@ export default function NationalOpsDashboard() {
     const handleSort = (key) => {
         setSortConfig(prev => ({
             key,
-            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc',
         }));
     };
 
-    // Format trend data for Recharts (Pivot by date)
     const chartData = useMemo(() => {
         const pivot = {};
         trendData.forEach(d => {
-            const dateStr = new Date(d.date).toLocaleDateString();
+            const dateStr = new Date(d.date).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
             if (!pivot[dateStr]) pivot[dateStr] = { date: dateStr };
             pivot[dateStr][d.county] = d.probability;
         });
@@ -79,177 +156,138 @@ export default function NationalOpsDashboard() {
     }, [trendData]);
 
     if (loading) return (
-        <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-500 font-bold animate-pulse">Loading Operational Intelligence...</p>
+        <div className="flex items-center justify-center min-h-[400px] gap-3">
+            <div className="w-5 h-5 border-2 border-flood-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">Loading intelligence...</span>
         </div>
     );
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-700">
-            {/* Header with Title and Action */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="space-y-4">
+
+            {/* Page header */}
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-surface-border">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">National Operations Center</h1>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">Strategic flood monitoring and crisis coordination.</p>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-slate-600 mb-1">GOK · National Emergency Management Authority</p>
+                    <h1 className="text-xl font-semibold text-slate-200">National Operations Center</h1>
+                    <p className="text-xs text-slate-500 mt-0.5">Lake Victoria Basin — Flood Risk Monitoring &amp; Coordination</p>
                 </div>
                 <Button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-100 dark:shadow-none font-bold px-6"
+                    onClick={() => setModalOpen(true)}
+                    className="shrink-0 bg-red-700 hover:bg-red-600 text-white text-xs px-4 py-2 rounded flex items-center gap-1.5 font-medium"
                 >
-                    <Plus className="w-4 h-4 mr-2" /> Broadcast Alert
+                    <Plus size={13} /> Broadcast Alert
                 </Button>
             </div>
 
-            <AlertCreateModal
-                isOpen={isCreateModalOpen}
-                onClose={() => setIsCreateModalOpen(false)}
-                onSuccess={fetchDashboardData}
-            />
-            {/* KPI Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <KPICard title="Active Alerts" value={stats?.active_alerts} icon={<ShieldAlert className="w-6 h-6" />} color="red" />
-                <KPICard title="High Risk Zones" value={stats?.high_risk_count} icon={<MapPin className="w-6 h-6" />} color="amber" />
-                <KPICard title="Population at Risk" value={stats?.pop_at_risk.toLocaleString()} icon={<Users className="w-6 h-6" />} color="blue" />
-                <KPICard title="Avg Lead Time" value={`${stats?.avg_lead_time} Days`} icon={<Clock className="w-6 h-6" />} color="indigo" />
+            <AlertCreateModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSuccess={fetchAll} />
+
+            {/* KPI row */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <KPI title="Active Alerts"       value={stats?.active_alerts}                    icon={ShieldAlert} accent="red"    />
+                <KPI title="High Risk Zones"     value={stats?.high_risk_count}                  icon={MapPin}      accent="amber"  />
+                <KPI title="Population at Risk"  value={stats?.pop_at_risk?.toLocaleString()}    icon={Users}       accent="flood"  />
+                <KPI title="Avg Lead Time"       value={stats?.avg_lead_time ? `${stats.avg_lead_time}d` : null} icon={Clock} accent="indigo" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Trend Chart */}
-                <Card className="lg:col-span-2 border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                    <CardHeader className="border-b border-slate-50 bg-slate-50/20">
-                        <CardTitle className="flex items-center gap-2 text-slate-800">
-                            <TrendingUp className="w-5 h-5 text-blue-600" />
-                            30-Day Flood Probability Trend
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-80 p-6 flex-1">
+            {/* Chart + alerts feed */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                {/* Trend chart */}
+                <Panel title="30-Day Flood Probability Trend" className="lg:col-span-2">
+                    <div className="p-5 h-64">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
+                            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
                                 <defs>
-                                    <linearGradient id="colorKisumu" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="colorSiaya" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="colorHoma" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#0891b2" stopOpacity={0} />
-                                    </linearGradient>
+                                    {[
+                                        { id: 'kisumu', color: '#22d3ee' },
+                                        { id: 'siaya',  color: '#818cf8' },
+                                        { id: 'homa',   color: '#34d399' },
+                                    ].map(g => (
+                                        <linearGradient key={g.id} id={g.id} x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%"  stopColor={g.color} stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor={g.color} stopOpacity={0} />
+                                        </linearGradient>
+                                    ))}
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="date" fontSize={10} tickMargin={10} axisLine={false} tickLine={false} />
-                                <YAxis fontSize={10} axisLine={false} tickLine={false} label={{ value: 'Prob. %', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#94a3b8' }} />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                                <XAxis dataKey="date" fontSize={9} tick={{ fill: '#475569' }} axisLine={false} tickLine={false} />
+                                <YAxis fontSize={9} tick={{ fill: '#475569' }} axisLine={false} tickLine={false} />
                                 <Tooltip
-                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 4, fontSize: 11 }}
+                                    labelStyle={{ color: '#94a3b8' }}
+                                    itemStyle={{ color: '#cbd5e1' }}
                                 />
-                                <Legend verticalAlign="top" height={36} />
-                                <Area type="monotone" name="Kisumu" dataKey="Kisumu" stroke="#2563eb" fillOpacity={1} fill="url(#colorKisumu)" strokeWidth={3} />
-                                <Area type="monotone" name="Siaya" dataKey="Siaya" stroke="#7c3aed" fillOpacity={1} fill="url(#colorSiaya)" strokeWidth={3} />
-                                <Area type="monotone" name="Homa Bay" dataKey="Homa Bay" stroke="#0891b2" fillOpacity={1} fill="url(#colorHoma)" strokeWidth={3} />
+                                <Legend wrapperStyle={{ fontSize: 10, color: '#64748b' }} verticalAlign="top" height={28} />
+                                <Area type="monotone" name="Kisumu"   dataKey="Kisumu"   stroke="#22d3ee" fill="url(#kisumu)" strokeWidth={1.5} dot={false} />
+                                <Area type="monotone" name="Siaya"    dataKey="Siaya"    stroke="#818cf8" fill="url(#siaya)"  strokeWidth={1.5} dot={false} />
+                                <Area type="monotone" name="Homa Bay" dataKey="Homa Bay" stroke="#34d399" fill="url(#homa)"   strokeWidth={1.5} dot={false} />
                             </AreaChart>
                         </ResponsiveContainer>
-                    </CardContent>
-                </Card>
+                    </div>
+                </Panel>
 
-                {/* Recent Alerts Feed */}
-                <Card className="border-slate-200 shadow-sm flex flex-col">
-                    <CardHeader className="border-b border-slate-50 bg-slate-50/20">
-                        <CardTitle className="text-lg font-bold text-slate-800">Recent Alerts Feed</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto p-0 scrollbar-hide max-h-[352px]">
-                        <div className="divide-y divide-slate-100">
-                            {recentAlerts.length === 0 ? (
-                                <div className="p-8 text-center text-slate-400 italic text-sm">No recent alerts recorded.</div>
-                            ) : recentAlerts.map((alert) => (
-                                <div key={alert.id} className="p-4 hover:bg-slate-50 transition-all cursor-pointer group">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <Badge variant={alert.severity === 'critical' ? 'danger' : alert.severity === 'high' ? 'warning' : 'info'} className="text-[9px] uppercase font-black px-2 py-0.5">
-                                            {alert.severity}
-                                        </Badge>
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                {/* Recent alerts feed */}
+                <Panel title="Recent Alerts">
+                    <div className="divide-y divide-surface-border max-h-64 overflow-y-auto">
+                        {recentAlerts.length === 0 ? (
+                            <p className="px-5 py-8 text-center text-xs text-slate-600 italic">No recent alerts</p>
+                        ) : recentAlerts.map(alert => (
+                            <Link
+                                key={alert.id}
+                                to={`/alerts/${alert.id}`}
+                                className="flex items-start gap-3 px-5 py-3 hover:bg-white/5 transition-colors group"
+                            >
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <SeverityChip severity={alert.severity} />
+                                        <span className="text-[10px] font-mono text-slate-600">
                                             {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                     </div>
-                                    <h4 className="font-bold text-slate-700 text-sm line-clamp-1 group-hover:text-blue-600 transition-colors">{alert.title}</h4>
-                                    <div className="flex items-center justify-between mt-3">
-                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-wide">{alert.county_name}</p>
-                                        <Link to="/dashboard/alerts" className="text-xs text-blue-600 font-black flex items-center gap-1 hover:translate-x-1 transition-transform">
-                                            VIEW <ArrowRight className="w-3 h-3" />
-                                        </Link>
-                                    </div>
+                                    <p className="text-xs font-medium text-slate-300 truncate group-hover:text-flood-400 transition-colors">{alert.title}</p>
+                                    <p className="text-[10px] text-slate-600 font-mono uppercase tracking-wide mt-0.5">{alert.county_name}</p>
                                 </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
+                                <ArrowRight size={12} className="text-slate-700 group-hover:text-flood-400 transition-colors mt-1 shrink-0" />
+                            </Link>
+                        ))}
+                    </div>
+                </Panel>
             </div>
 
-            {/* Risk Table */}
-            <Card className="border-slate-200 shadow-sm overflow-hidden">
-                <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-5">
-                    <CardTitle className="text-lg font-black text-slate-800 tracking-tight uppercase">National Risk Analytics Matrix</CardTitle>
-                </CardHeader>
+            {/* Risk matrix table */}
+            <Panel title="National Risk Analytics Matrix">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-slate-500 uppercase bg-white border-b border-slate-100">
+                    <table className="w-full text-xs">
+                        <thead className="border-b border-surface-border">
                             <tr>
-                                <th className="px-6 py-5 font-black cursor-pointer hover:text-blue-600 transition-colors" onClick={() => handleSort('name')}>County / Region</th>
-                                <th className="px-6 py-5 font-black cursor-pointer hover:text-blue-600 transition-colors text-center" onClick={() => handleSort('flood_probability')}>Max Probability</th>
-                                <th className="px-6 py-5 font-black text-center">Operational Tier</th>
-                                <th className="px-6 py-5 font-black cursor-pointer hover:text-blue-600 transition-colors text-center" onClick={() => handleSort('lead_time_days')}>Alert Lead Time</th>
+                                <SortTh label="County"           sortKey="name"              sortConfig={sortConfig} onSort={handleSort} />
+                                <SortTh label="Flood Probability" sortKey="flood_probability" sortConfig={sortConfig} onSort={handleSort} />
+                                <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-600">Risk Tier</th>
+                                <SortTh label="Lead Time"        sortKey="lead_time_days"    sortConfig={sortConfig} onSort={handleSort} />
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {sortedTableData.map((c) => (
-                                <tr key={c.id} className="hover:bg-blue-50/30 transition-colors group">
-                                    <td className="px-6 py-4 font-bold text-slate-800">{c.name}</td>
-                                    <td className="px-6 py-4 text-center">
-                                        <div className="flex items-center justify-center gap-3">
-                                            <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                                                <div className={`h-full transition-all duration-1000 ${c.flood_probability >= 75 ? 'bg-red-500' : c.flood_probability >= 50 ? 'bg-amber-500' : 'bg-blue-600'
-                                                    }`} style={{ width: `${c.flood_probability}%` }} />
-                                            </div>
-                                            <span className="font-black text-slate-700 w-8">{c.flood_probability}%</span>
-                                        </div>
+                        <tbody className="divide-y divide-surface-border">
+                            {sortedCounties.map(c => (
+                                <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
+                                    <td className="px-5 py-3 font-medium text-slate-300">{c.name}</td>
+                                    <td className="px-5 py-3">
+                                        <RiskBar value={c.flood_probability} />
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <Badge variant={c.risk_category === 'High' ? 'danger' : c.risk_category === 'Moderate' ? 'warning' : 'success'} className="px-3 py-1 font-bold">
-                                            {c.risk_category}
-                                        </Badge>
+                                    <td className="px-5 py-3">
+                                        <span className={`text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                                            c.risk_category === 'High'     ? 'text-red-400 bg-red-900/20 border-red-800/30' :
+                                            c.risk_category === 'Moderate' ? 'text-amber-400 bg-amber-900/20 border-amber-800/30' :
+                                            'text-emerald-400 bg-emerald-900/20 border-emerald-800/30'
+                                        }`}>{c.risk_category}</span>
                                     </td>
-                                    <td className="px-6 py-4 text-center text-slate-600 font-bold italic">{c.lead_time_days} Days</td>
+                                    <td className="px-5 py-3 font-mono text-slate-500">{c.lead_time_days}d</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-            </Card>
+            </Panel>
         </div>
-    );
-}
-
-function KPICard({ title, value, icon, color }) {
-    const colorClasses = {
-        red: 'bg-red-50 text-red-600 ring-red-100',
-        amber: 'bg-amber-50 text-amber-600 ring-amber-100',
-        blue: 'bg-blue-50 text-blue-600 ring-blue-100',
-        indigo: 'bg-indigo-50 text-indigo-600 ring-indigo-100',
-    };
-    return (
-        <Card className="border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group">
-            <CardContent className="p-6 flex items-center justify-between">
-                <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-slate-600 transition-colors">{title}</p>
-                    <h3 className="text-4xl font-black text-slate-900 mt-2 tracking-tighter tabular-nums">{value ?? '--'}</h3>
-                </div>
-                <div className={`p-4 rounded-3xl shadow-sm ring-4 ${colorClasses[color]} transition-all group-hover:scale-110`}>
-                    {icon}
-                </div>
-            </CardContent>
-        </Card>
     );
 }
