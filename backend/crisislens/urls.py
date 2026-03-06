@@ -9,3 +9,6 @@ urlpatterns = [
     path("api/auth/", include("accounts.urls")),
     path("api/",      include("api.urls")),
 ]
+
+admin.site.site_header = "CrisisLens Admin"
+admin.site.site_title = "CrisisLens"
