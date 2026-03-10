@@ -7,6 +7,7 @@ import LeafletMap from "../components/map/LeafletMap";
 import CountySelector from "../components/map/CountySelector";
 import MapLegend from "../components/map/MapLegend";
 import IntelSidebar from "../components/tactical/IntelSidebar";
+import DroneReconModal from "../components/tactical/DroneReconModal";
 
 // Local GeoJSON files for boundaries 
 import kenyaCountiesRaw from "../data/ken_admin1.geojson?raw";
@@ -40,6 +41,7 @@ export default function MapPage() {
     const [selectedCustomPin, setSelectedCustomPin] = useState(null); // NEW: Track custom dropped pin
     const [isSimulating, setIsSimulating] = useState(false); // Track simulation state
     const [mapInstance, setMapInstance] = useState(null);
+    const [isDroneModalOpen, setIsDroneModalOpen] = useState(false); // Global Drone UI
 
     const { data: allCounties, loading: countiesLoading, error: countiesError, refetch: refetchCounties } = useCounties();
 
@@ -148,6 +150,7 @@ export default function MapPage() {
     const handleCustomPinDrop = (latlng) => {
         setSelectedCustomPin(latlng);
         setSelectedHotspot(null); // Explicitly clear any active hotspots
+        setIsDroneModalOpen(false); // Make sure the modal doesn't persist if they drop a new pin
         // We don't automatically clear area/county here, as the pin might be inside them,
         // so the user still has broader context.
     };
@@ -279,6 +282,7 @@ export default function MapPage() {
                         selectedHotspot={selectedHotspot}
                         selectedCustomPin={selectedCustomPin} // Pass custom pin to sidebar
                         topAreas={topAreas}
+                        onDeployDrone={() => setIsDroneModalOpen(true)}
                         onClose={() => {
                             setSelectedAreaName("");
                             setSelectedHotspot(null);
@@ -287,6 +291,13 @@ export default function MapPage() {
                     />
                 )}
             </aside>
+
+            {/* Global Drone Recon Modal */}
+            <DroneReconModal
+                isOpen={isDroneModalOpen}
+                onClose={() => setIsDroneModalOpen(false)}
+                coordinates={selectedCustomPin}
+            />
         </div>
     );
 }

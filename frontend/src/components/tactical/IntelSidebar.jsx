@@ -3,22 +3,11 @@ import ReactMarkdown from 'react-markdown';
 import { Bot, Sparkles, ChevronRight, Info, AlertTriangle, MessageSquare } from 'lucide-react';
 import AIChatPanel from '../ai/AIChatPanel';
 import Badge from '../ui/Badge';
-import client from '../../api/client';
 
-export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, selectedHotspot, selectedCustomPin, onClose }) {
+export default function IntelSidebar({ county, area, areaRiskEntry, topAreas = [], selectedHotspot, selectedCustomPin, onClose, onDeployDrone }) {
     const [mode, setMode] = useState('risk'); // 'risk', 'briefing', 'chat'
     const [briefing, setBriefing] = useState('');
     const [loadingBriefing, setLoadingBriefing] = useState(false);
-
-    // Recon Drone State
-    const [isDroneScanning, setIsDroneScanning] = useState(false);
-    const [droneImage, setDroneImage] = useState(null);
-
-    // Reset drone state when pin changes
-    useEffect(() => {
-        setDroneImage(null);
-        setIsDroneScanning(false);
-    }, [selectedCustomPin]);
 
     // Auto-switch to briefing mode if a hotspot or custom pin is clicked
     useEffect(() => {
@@ -145,7 +134,7 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, se
                         )}
 
                         {/* Sectors List (if showing County and NOT a hotspot/pin) */}
-                        {!area && !selectedHotspot && !selectedCustomPin && topAreas.length > 0 && (
+                        {!area && !selectedHotspot && !selectedCustomPin && topAreas?.length > 0 && (
                             <div className="space-y-3">
                                 <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">High Risk Sectors</h3>
                                 <div className="space-y-1.5">
@@ -161,20 +150,6 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, se
                             </div>
                         )}
 
-                        {/* Drone Imagery Display */}
-                        {selectedCustomPin && droneImage && (
-                            <div className="mt-4 p-2 bg-slate-900 border border-slate-700 rounded-sm overflow-hidden relative group animate-in fade-in zoom-in-95 duration-500">
-                                <span className="absolute top-3 left-3 bg-black/60 text-green-400 text-[8px] font-black font-mono px-2 py-0.5 rounded-sm border border-green-500/30 z-10 flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> LIVE FEED
-                                </span>
-                                <span className="absolute bottom-3 right-3 text-white/50 text-[6px] font-mono z-10">
-                                    ELEV: 400ft | SENSORS: OPTICAL,IR
-                                </span>
-                                <img src={droneImage} alt="Tactical Drone Recon" className="w-full h-32 object-cover rounded-sm border border-slate-800" />
-                                <div className="absolute inset-0 border border-green-500/20 pointer-events-none custom-scanline" />
-                            </div>
-                        )}
-
                         {/* Action Buttons */}
                         <div className="pt-4 border-t border-slate-100 dark:border-surface-border space-y-2">
                             <button
@@ -186,32 +161,13 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, se
                             </button>
 
                             {/* Show Drone Deploy Button ONLY for Custom Pins */}
-                            {selectedCustomPin && !droneImage && (
+                            {selectedCustomPin && (
                                 <button
-                                    onClick={() => {
-                                        setIsDroneScanning(true);
-                                        // Simulate drone flight / image generation delay
-                                        setTimeout(() => {
-                                            setDroneImage("/images/synthetic_drone_flood.jpg");
-                                            setIsDroneScanning(false);
-                                        }, 2500);
-                                    }}
-                                    disabled={isDroneScanning}
-                                    className={`w-full py-2.5 px-4 text-white text-[10px] font-black uppercase tracking-widest rounded-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98]
-                                        ${isDroneScanning ? 'bg-slate-600 animate-pulse cursor-wait' : 'bg-slate-900 hover:bg-black'}
-                                    `}
+                                    onClick={onDeployDrone}
+                                    className="w-full py-2.5 px-4 bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase tracking-widest rounded-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98]"
                                 >
-                                    {isDroneScanning ? (
-                                        <>
-                                            <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            Establishing Uplink...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles size={13} />
-                                            Deploy Recon Drone
-                                        </>
-                                    )}
+                                    <Sparkles size={13} />
+                                    Launch Recon Uplink
                                 </button>
                             )}
                         </div>
