@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import client from '../../api/client';
-import Card, { CardContent } from '../../components/ui/Card';
+import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ShieldAlert, MapPin, Users, Clock, ArrowRight, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -163,7 +162,7 @@ export default function NationalOpsDashboard() {
     );
 
     return (
-        <div className="space-y-4 animate-in fade-in duration-500">
+        <div className="p-4 md:p-5 space-y-4 animate-in fade-in duration-500">
 
             {/* Page header - Highly Compact */}
             <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-surface-border">
@@ -276,8 +275,8 @@ export default function NationalOpsDashboard() {
                                     </td>
                                     <td className="px-4 py-2">
                                         <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${c.risk_category === 'High' ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/10' :
-                                                c.risk_category === 'Moderate' ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/10' :
-                                                    'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/10'
+                                            c.risk_category === 'Moderate' ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/10' :
+                                                'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/10'
                                             }`}>{c.risk_category}</span>
                                     </td>
                                     <td className="px-4 py-2 font-black text-slate-400 tabular-nums italic tracking-tighter">{c.lead_time_days}D LEAD</td>

@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  AreaChart, Area, LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
+  AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 import useSubCountyRisk from "../hooks/useSubCountyRisk";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import kenyaAreasRaw from "../data/ken_admin2.geojson?raw";
+import { usePageTitle } from "../hooks/usePageTitle";
+import { Camera, Mic, Ruler, History, Truck, Zap, Activity, TrendingUp, Users, Brain } from "lucide-react";
 
 const kenyaAreas = JSON.parse(kenyaAreasRaw);
 const FOCUS_COUNTY_NAMES = new Set(["Kisumu", "Siaya", "Homa Bay"]);
@@ -107,7 +109,7 @@ function BarRow({ label, value, color }) {
   );
 }
 
-function Toast({ msg, color }) {
+function Toast({ msg }) {
   if (!msg) return null;
   return (
     <div
@@ -120,7 +122,8 @@ function Toast({ msg, color }) {
 
 /* ─── FEATURE COMPONENTS ──────────────────────────────────────────────────── */
 function SubmitModal({ type, onClose, onToast }) {
-  const titles = { photo: "📷 Tactical Photo", voice: "🎤 Ops Voice", water: "📏 Gauge Index" };
+  const titles = { photo: "Tactical Photo", voice: "Ops Voice", water: "Gauge Index" };
+  const icons = { photo: <Camera size={18} />, voice: <Mic size={18} />, water: <Ruler size={18} /> };
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = () => {
@@ -135,12 +138,15 @@ function SubmitModal({ type, onClose, onToast }) {
     <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
       <Card className="w-full max-w-xs p-4 animate-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xs font-black uppercase tracking-[0.2em] dark:text-white">{titles[type]}</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-flood-600 dark:text-flood-400">{icons[type]}</span>
+            <h2 className="text-xs font-black uppercase tracking-[0.2em] dark:text-white">{titles[type]}</h2>
+          </div>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors text-xs font-black">✕</button>
         </div>
         <div className="space-y-4">
           <div className="h-24 border border-dashed border-slate-200 dark:border-surface-border rounded-sm flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50 dark:bg-surface/30">
-            <span className="text-xl">{type === "photo" ? "📸" : type === "voice" ? "🎙️" : "📏"}</span>
+            <span className="text-flood-500">{icons[type]}</span>
             <span className="text-[8px] font-black uppercase tracking-[0.2em]">Upload Intel</span>
           </div>
           <Button className="w-full h-9 font-black uppercase tracking-widest text-[9px]" onClick={handleSubmit} disabled={loading}>
@@ -152,10 +158,10 @@ function SubmitModal({ type, onClose, onToast }) {
   );
 }
 
-function MapSVG({ region, onRegion, onToast }) {
+function MapSVG({ region, onRegion }) {
   const regions = { Kisumu: { prob: 72, color: P.danger }, Nyando: { prob: 88, color: P.crit }, Siaya: { prob: 45, color: P.warn }, "Homa Bay": { prob: 32, color: P.accent2 } };
   return (
-    <div className="relative h-44 bg-slate-50 dark:bg-surface-border/5 flex items-center justify-center overflow-hidden">
+    <div className="relative h-44 bg-slate-50 dark:bg-surface-border/5 flex items-center justify-center overflow-hidden transition-colors">
       <div className="absolute inset-0 opacity-5 dark:opacity-10 flex items-center justify-center font-black text-4xl pointer-events-none select-none uppercase tracking-tighter">Ops View</div>
       <div className="flex gap-2 p-4 flex-wrap justify-center relative z-10">
         {Object.keys(regions).map(r => (
@@ -193,7 +199,9 @@ function AIPanel({ region }) {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="p-3 border-b border-slate-100 dark:border-surface-border bg-slate-50/50 dark:bg-surface/50">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-sm bg-flood-600 flex items-center justify-center text-white text-xs">AI</div>
+          <div className="w-6 h-6 rounded-sm bg-flood-600 flex items-center justify-center text-white">
+            <Brain size={12} />
+          </div>
           <div>
             <div className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-tighter">Intelligence Layer</div>
             <div className="text-[8px] text-emerald-500 font-bold tracking-widest uppercase">Validated Ground Truth</div>
@@ -224,15 +232,18 @@ function SignalChart({ d }) {
 }
 
 /* ─── PAGE COMPONENTS ──────────────────────────────────────────────────────── */
-function PageOperations({ region, setRegion, onToast, d, filteredAreas, selectedDayIndex, setSelectedDayIndex }) {
+function PageOperations({ region, setRegion, d, filteredAreas, selectedDayIndex, setSelectedDayIndex }) {
   return (
-    <div className="flex flex-col lg:flex-row w-full h-[calc(100vh-56px)] overflow-hidden bg-white dark:bg-surface transition-colors duration-200">
+    <div className="flex flex-col lg:flex-row w-full h-full overflow-hidden bg-white dark:bg-surface transition-colors duration-200">
       {/* Sidebar - Compact */}
       <div className="w-full lg:w-72 flex flex-col border-r border-slate-100 dark:border-surface-border overflow-y-auto custom-scrollbar">
-        <MapSVG region={region} onRegion={setRegion} onToast={onToast} />
+        <MapSVG region={region} onRegion={setRegion} />
         <div className="p-4 border-t border-slate-100 dark:border-surface-border flex-1">
           <div className="flex justify-between items-center mb-4">
-            <Label>Telemetry Status</Label>
+            <div className="flex items-center gap-2">
+              <Activity size={10} className="text-slate-400" />
+              <Label>Telemetry Status</Label>
+            </div>
             <Badge variant="outline" className="text-[7px] tracking-widest px-1 font-black">LIVE</Badge>
           </div>
           <div className="space-y-0.5 h-[300px] overflow-y-auto pr-2 custom-scrollbar">
@@ -292,7 +303,7 @@ function PageOperations({ region, setRegion, onToast, d, filteredAreas, selected
 
 function PageForecast({ d }) {
   return (
-    <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500">
+    <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500 h-full overflow-y-auto custom-scrollbar bg-white dark:bg-surface transition-colors">
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-surface-border pb-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">{d.name} Forecast</h1>
@@ -334,14 +345,14 @@ function PageForecast({ d }) {
 
 function PageIntelligence({ d }) {
   return (
-    <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500">
+    <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500 h-full overflow-y-auto custom-scrollbar bg-white dark:bg-surface transition-colors">
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-surface-border pb-4">
         <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Memory Bank: {d.name}</h1>
         <Badge variant="outline" className="text-[8px] h-6 px-2 font-black uppercase">Historical Telemetry</Badge>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-4">
-          <Label className="mb-4 flex items-center gap-2"><span className="text-emerald-500">●</span> Intelligence cycles</Label>
+          <Label className="mb-4 flex items-center gap-2"><span className="text-emerald-500 text-[6px]">●</span> Intelligence cycles</Label>
           <div className="space-y-4">
             {[{ yr: "2018", t: "Low-Pressure Sync", d: "Bridge failure at 2.1m. Pre-staging was delayed by 12h." }, { yr: "2020", t: "Overflow Event", d: "Victoria levels blocked basin drainage for 14d." }].map(({ yr, t, d }) => (
               <div key={yr} className="flex gap-4 pb-4 border-b border-slate-50 dark:border-surface-border last:border-0 last:pb-0">
@@ -355,11 +366,11 @@ function PageIntelligence({ d }) {
           </div>
         </Card>
         <Card className="p-4">
-          <Label className="mb-4 flex items-center gap-2"><span className="text-red-500">●</span> Tactical Vulnerabilities</Label>
+          <Label className="mb-4 flex items-center gap-2"><span className="text-red-500 text-[6px]">●</span> Tactical Vulnerabilities</Label>
           <div className="space-y-2">
-            {[["🌉", "Nyando Bridge", "Limit: 2.1m. Isolates basin."], ["🚑", "Relief Corridor", "Road access lost at 1.8m."]].map(([icon, t, d]) => (
+            {[["bridge", "Nyando Bridge", "Limit: 2.1m. Isolates basin."], ["truck", "Relief Corridor", "Road access lost at 1.8m."]].map(([type, t, d]) => (
               <div key={t} className="p-2.5 bg-slate-50 dark:bg-surface border border-slate-100 dark:border-surface-border rounded-sm flex items-start gap-3">
-                <span className="text-sm">{icon}</span>
+                <span className="text-flood-500 mt-0.5">{type === 'bridge' ? <History size={14} /> : <Truck size={14} />}</span>
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-tight mb-0.5">{t}</div>
                   <p className="text-[9px] text-slate-500 leading-tight">{d}</p>
@@ -379,7 +390,7 @@ function PageReplay({ d }) {
   const cur = seriesData[Math.min(Math.floor(pct / 100 * (seriesData.length - 1)), seriesData.length - 1)];
 
   return (
-    <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500">
+    <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500 h-full overflow-y-auto custom-scrollbar bg-white dark:bg-surface transition-colors">
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-surface-border pb-4">
         <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Ops Replay Analysis</h1>
         <Badge className="h-6 px-2 text-[8px] font-black uppercase tracking-widest">{cur?.label}</Badge>
@@ -424,27 +435,28 @@ function PageReplay({ d }) {
 
 function PageCommunity({ onToast }) {
   const [modal, setModal] = useState(null);
+  const icons = { photo: <Camera size={18} />, zap: <Zap size={14} />, activity: <Activity size={14} /> };
   return (
-    <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500">
+    <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500 h-full overflow-y-auto custom-scrollbar bg-white dark:bg-surface transition-colors">
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-surface-border pb-4">
         <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Ground Truth Signal</h1>
-        <Badge className="bg-emerald-500 text-white text-[9px] h-6 px-2 font-black uppercase tracking-widest animate-pulse">312 ACTIVE UNITS</Badge>
+        <Badge className="bg-emerald-500 text-white text-[9px] h-6 px-2 font-black uppercase tracking-widest">312 ACTIVE UNITS</Badge>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-4 lg:col-span-2">
           <Label className="mb-4">Community Ingest Log</Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[["📸", "Nyando Bridge", "12m ago", "Verified"], ["⚡", "Power Grid", "28m ago", "Critical"]].map(([i, t, m, s]) => (
+            {[[icons.photo, "Nyando Bridge", "12m ago", "Verified"], [icons.zap, "Power Grid", "28m ago", "Critical"]].map(([i, t, m, s]) => (
               <div key={t} className="p-3 border border-slate-100 dark:border-surface-border rounded-sm hover:bg-slate-50 dark:hover:bg-surface/50 transition-colors cursor-pointer">
-                <span className="text-xl mb-2 block">{i}</span>
+                <span className="text-flood-600 dark:text-flood-400 mb-2 block">{i}</span>
                 <div className="text-[11px] font-black uppercase dark:text-white truncate">{t}</div>
                 <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{m} • {s}</div>
               </div>
             ))}
           </div>
         </Card>
-        <Card className="p-4 flex flex-col items-center justify-center border-dashed border-2 bg-slate-50/20 dark:bg-surface/5 text-center">
-          <span className="text-xl mb-3">📸</span>
+        <Card className="p-4 flex flex-col items-center justify-center border-dashed border-2 bg-slate-50/20 dark:bg-surface/5 text-center transition-colors">
+          <span className="text-flood-500 mb-3">{icons.photo}</span>
           <div className="text-xs font-black uppercase tracking-[0.2em] mb-2 dark:text-white">Relay Ground Truth</div>
           <p className="text-[9px] text-slate-500 font-bold mb-4 leading-tight">Transmit visual confirmation to calibrate AI models.</p>
           <Button size="sm" className="w-full h-8 text-[9px] font-black uppercase tracking-widest" onClick={() => setModal("photo")}>LAUNCH RELAY</Button>
@@ -456,12 +468,11 @@ function PageCommunity({ onToast }) {
 }
 
 /* ─── ROOT APP ─────────────────────────────────────────────────────────────── */
-export default function App() {
+export default function ReportsPage() {
+  usePageTitle("Operational Reports");
   const [region, setRegion] = useState("Nyando");
   const [page, setPage] = useState("operations");
-  const [toast, setToast] = useState({ msg: "", color: P.accent });
-  const [clock, setClock] = useState("");
-  const [selectedDayIndex, setSelectedDayIndex] = useState(21);
+  const [toast, setToast] = useState({ msg: "" });
   const toastTimer = useRef(null);
 
   const { data: subCountiesData } = useSubCountyRisk();
@@ -471,20 +482,16 @@ export default function App() {
       .sort((a, b) => b.flood_probability - a.flood_probability);
   }, [subCountiesData]);
 
-  useEffect(() => {
-    const tick = () => setClock(new Date().toUTCString().slice(17, 25) + " UTC");
-    tick(); const id = setInterval(tick, 1000); return () => clearInterval(id);
-  }, []);
-
-  const showToast = (msg, color = P.accent) => {
+  const showToast = (msg) => {
     clearTimeout(toastTimer.current);
-    setToast({ msg, color });
-    toastTimer.current = setTimeout(() => setToast({ msg: "", color }), 2500);
+    setToast({ msg });
+    toastTimer.current = setTimeout(() => setToast({ msg: "" }), 2500);
   };
 
-  const d = getRegionData(region, subCountiesData, selectedDayIndex - 21);
+  const d = getRegionData(region, subCountiesData, 0); // Day offset logic simplified for app integration
+
   const pages = {
-    operations: <PageOperations region={region} setRegion={r => { setRegion(r); showToast(`📍 Location: ${r.toUpperCase()}`); }} onToast={showToast} d={d} filteredAreas={filteredAreas} selectedDayIndex={selectedDayIndex} setSelectedDayIndex={setSelectedDayIndex} />,
+    operations: <PageOperations region={region} setRegion={r => { setRegion(r); showToast(`📍 Location: ${r.toUpperCase()}`); }} d={d} filteredAreas={filteredAreas} selectedDayIndex={21} setSelectedDayIndex={() => { }} />,
     forecast: <PageForecast d={d} />,
     intelligence: <PageIntelligence d={d} />,
     replay: <PageReplay d={d} />,
@@ -492,26 +499,41 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-surface text-slate-900 dark:text-white font-sans selection:bg-flood-500/30 transition-colors duration-200">
-      <header className="fixed top-0 left-0 right-0 h-[56px] bg-white dark:bg-surface border-b border-slate-200 dark:border-surface-border z-50 flex items-center justify-between px-6 transition-colors">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-sm bg-flood-600 flex items-center justify-center text-white font-black text-lg">C</div>
-          <span className="font-black text-base tracking-tighter uppercase hidden sm:block">Crisis<span className="text-flood-500 font-medium">Lens</span></span>
+    <div className="flex h-full bg-white dark:bg-surface selection:bg-flood-500/30 transition-colors animate-in fade-in duration-300 overflow-hidden">
+      {/* Internal Sub-navigation Sidebar */}
+      <nav className="w-14 md:w-48 border-r border-slate-100 dark:border-surface-border bg-slate-50/30 dark:bg-surface-raised flex flex-col shrink-0">
+        <div className="p-4 border-b border-slate-100 dark:border-surface-border hidden md:block">
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Operational View</p>
         </div>
-        <nav className="flex items-center gap-0.5">
-          {Object.keys(pages).map(p => (
-            <button key={p} onClick={() => setPage(p)} className={`px-3 py-1.5 rounded-sm text-[9px] font-black uppercase tracking-[0.15em] transition-all ${page === p ? "text-flood-600 dark:text-flood-400 bg-flood-50/50 dark:bg-flood-950/20" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
-              {p}
-            </button>
-          ))}
-        </nav>
-        <div className="hidden xl:flex items-center gap-4">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">{clock}</span>
+        <div className="flex-1 py-4 px-2 space-y-1">
+          {Object.keys(pages).map(p => {
+            const icons = {
+              operations: <Activity size={14} />,
+              forecast: <TrendingUp size={14} />,
+              intelligence: <Brain size={14} />,
+              replay: <History size={14} />,
+              community: <Users size={14} />
+            };
+            return (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] transition-all rounded-sm border ${page === p
+                  ? "bg-flood-600/10 text-flood-600 dark:text-flood-400 border-flood-600/20"
+                  : "text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent hover:bg-slate-100 dark:hover:bg-white/5"}`}
+              >
+                <span className="shrink-0">{icons[p]}</span>
+                <span className="hidden md:block truncate">{p}</span>
+              </button>
+            );
+          })}
         </div>
-      </header>
-      <main className="pt-[56px]">{pages[page]}</main>
-      <Toast msg={toast.msg} color={toast.color} />
+      </nav>
+
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {pages[page]}
+      </div>
+      <Toast msg={toast.msg} />
     </div>
   );
 }

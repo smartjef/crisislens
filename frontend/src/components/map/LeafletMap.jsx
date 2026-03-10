@@ -75,7 +75,7 @@ export default function LeafletMap({
     };
 
     return (
-        <div className="h-[500px] w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm relative z-0">
+        <div className="h-[500px] w-full rounded-sm overflow-hidden border border-slate-200 dark:border-surface-border relative z-0">
             <MapContainer
                 center={[-0.2, 34.6]}
                 zoom={9}

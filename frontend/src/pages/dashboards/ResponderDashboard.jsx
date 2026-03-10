@@ -77,7 +77,7 @@ export default function ResponderDashboard() {
         : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 
     return (
-        <div className="space-y-4 animate-in fade-in duration-500">
+        <div className="p-4 md:p-5 space-y-4 animate-in fade-in duration-500">
 
             {/* Header - Highly Compact */}
             <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-slate-200 dark:border-surface-border">
@@ -124,8 +124,8 @@ export default function ResponderDashboard() {
                                     <div className="p-4 flex-1">
                                         <div className="flex items-center gap-3 mb-2">
                                             <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${alert.severity === 'critical' ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30' :
-                                                    alert.severity === 'high' ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/30' :
-                                                        'text-flood-600 dark:text-flood-400 bg-flood-50 dark:bg-flood-950/20 border-flood-100 dark:border-flood-900/30'
+                                                alert.severity === 'high' ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/30' :
+                                                    'text-flood-600 dark:text-flood-400 bg-flood-50 dark:bg-flood-950/20 border-flood-100 dark:border-flood-900/30'
                                                 }`}>{alert.severity}</span>
                                             <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                                 {alert.county_name} · {alert.sub_county_name || 'Jurisdiction Wide'}

@@ -117,7 +117,7 @@ export default function CountyDashboard() {
     );
 
     return (
-        <div className="space-y-4 animate-in fade-in duration-500">
+        <div className="p-4 md:p-5 space-y-4 animate-in fade-in duration-500">
 
             {/* Header - Highly Compact */}
             <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-surface-border">
