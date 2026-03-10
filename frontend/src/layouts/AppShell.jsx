@@ -68,7 +68,7 @@ export default function AppShell() {
 
     return (
         <PageTitleProvider>
-            <div className="flex h-screen bg-slate-50 dark:bg-surface text-slate-900 dark:text-slate-100 overflow-hidden font-sans">
+            <div className="flex h-screen bg-slate-50 dark:bg-surface text-slate-800 dark:text-slate-200 overflow-hidden font-sans">
 
                 {/* Sidebar handles both mobile full-overlay and desktop rendering */}
                 <Sidebar
@@ -86,7 +86,7 @@ export default function AppShell() {
                         isMobile={isMobile}
                     />
 
-                    <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+                    <main className="flex-1 overflow-y-auto p-4 md:p-5">
                         <div className="mx-auto max-w-7xl">
                             <Outlet />
                         </div>

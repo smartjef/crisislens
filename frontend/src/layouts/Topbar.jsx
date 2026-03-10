@@ -2,126 +2,155 @@ import React, { useState } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuthStore } from '../store/authStore';
-import { useAlertStore } from '../store/useAlertStore';
-import { Avatar, Badge } from '../components/ui';
-import { Menu, Bell, Sun, Moon, Monitor, ArrowRight, AlertCircle } from 'lucide-react';
+import { Badge } from '../components/ui';
+import { Menu, Bell, Sun, Moon, Monitor, AlertCircle, LogOut, User as UserIcon } from 'lucide-react';
 import useAlerts from '../hooks/useAlerts';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
-export default function Topbar({ onMenuClick, isSidebarCollapsed, isMobile }) {
+const ROLE_LABELS = {
+    super_admin:    'Super Admin',
+    national_ops:   'National Ops',
+    county_officer: 'County Officer',
+    responder:      'Responder',
+    analyst:        'Analyst',
+};
+
+function formatTime() {
+    return new Date().toLocaleTimeString('en-KE', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+        timeZone: 'Africa/Nairobi',
+    });
+}
+
+export default function Topbar({ onMenuClick }) {
     const { title } = usePageTitle();
     const { theme, setTheme } = useDarkMode();
+    const { user } = useAuthStore();
+    const navigate = useNavigate();
     const { data: alertsData } = useAlerts({ status: 'active' }, { pollInterval: 30000 });
     const unreadCount = alertsData?.results?.length || 0;
 
+    const [notifOpen, setNotifOpen]   = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
-    const [themeOpen, setThemeOpen] = useState(false);
-    const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const [themeOpen, setThemeOpen]   = useState(false);
+    const [, forceUpdate] = useState(0);
+
+    // live clock tick
+    React.useEffect(() => {
+        const t = setInterval(() => forceUpdate(n => n + 1), 1000);
+        return () => clearInterval(t);
+    }, []);
+
+    const closeAll = () => { setNotifOpen(false); setProfileOpen(false); setThemeOpen(false); };
 
     return (
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised px-4 shadow-sm">
-            <div className="flex items-center">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-surface-border bg-surface-raised px-4 shrink-0">
+
+            {/* Left: hamburger + breadcrumb */}
+            <div className="flex items-center gap-3 min-w-0">
                 <button
                     onClick={onMenuClick}
-                    className="mr-3 text-slate-500 hover:text-slate-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-flood-500 rounded-lg p-1"
+                    className="text-slate-500 hover:text-slate-200 focus:outline-none rounded p-1 hover:bg-white/5 transition-colors shrink-0"
                 >
-                    <Menu className="w-6 h-6" />
+                    <Menu size={18} />
                 </button>
-                <h1 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h1>
+                <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] text-slate-600 font-mono uppercase tracking-widest hidden sm:block">CrisisLens</span>
+                    <span className="text-slate-600 hidden sm:block">/</span>
+                    <span className="text-sm font-medium text-slate-300 truncate">{title}</span>
+                </div>
             </div>
 
-            <div className="flex items-center space-x-4">
-                {/* Theme Toggle Dropdown */}
+            {/* Right: status strip + controls */}
+            <div className="flex items-center gap-1 shrink-0">
+
+                {/* Operational clock */}
+                <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded border border-surface-border mr-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-mono text-slate-500 tracking-wider">EAT {formatTime()}</span>
+                </div>
+
+                {/* Active alerts count */}
+                {unreadCount > 0 && (
+                    <div className="hidden md:flex items-center gap-1 px-2 py-1 rounded bg-red-900/20 border border-red-800/30 mr-1">
+                        <AlertCircle size={11} className="text-red-400" />
+                        <span className="text-[10px] font-mono text-red-400 font-semibold">{unreadCount} ACTIVE</span>
+                    </div>
+                )}
+
+                {/* Theme toggle */}
                 <div className="relative">
                     <button
-                        className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-surface-border hover:text-slate-900 dark:hover:text-white focus:outline-none transition-colors"
-                        onClick={() => { setThemeOpen(!themeOpen); setProfileOpen(false); }}
+                        className="p-1.5 rounded text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors"
+                        onClick={() => { closeAll(); setThemeOpen(v => !v); }}
+                        title="Appearance"
                     >
-                        {theme === 'light' && <Sun className="w-6 h-6" />}
-                        {theme === 'dark' && <Moon className="w-6 h-6" />}
-                        {theme === 'system' && <Monitor className="w-6 h-6" />}
+                        {theme === 'light' ? <Sun size={15} /> : theme === 'dark' ? <Moon size={15} /> : <Monitor size={15} />}
                     </button>
                     {themeOpen && (
-                        <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-surface-raised rounded-lg shadow-lg py-1 border border-slate-200 dark:border-surface-border z-40">
-                            <button
-                                onClick={() => { setTheme('light'); setThemeOpen(false); }}
-                                className={`w-full text-left flex items-center px-4 py-2 text-sm ${theme === 'light' ? 'text-flood-600 bg-slate-50 dark:bg-surface-border' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-border'}`}
-                            >
-                                <Sun className="w-4 h-4 mr-2" /> Light
-                            </button>
-                            <button
-                                onClick={() => { setTheme('dark'); setThemeOpen(false); }}
-                                className={`w-full text-left flex items-center px-4 py-2 text-sm ${theme === 'dark' ? 'text-flood-600 bg-slate-50 dark:bg-surface-border' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-border'}`}
-                            >
-                                <Moon className="w-4 h-4 mr-2" /> Dark
-                            </button>
-                            <button
-                                onClick={() => { setTheme('system'); setThemeOpen(false); }}
-                                className={`w-full text-left flex items-center px-4 py-2 text-sm ${theme === 'system' ? 'text-flood-600 bg-slate-50 dark:bg-surface-border' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-border'}`}
-                            >
-                                <Monitor className="w-4 h-4 mr-2" /> System
-                            </button>
+                        <div className="absolute right-0 mt-1 w-32 bg-surface-raised border border-surface-border rounded shadow-xl z-50 py-1">
+                            {[
+                                { id: 'light', icon: <Sun size={12} />, label: 'Light' },
+                                { id: 'dark',  icon: <Moon size={12} />, label: 'Dark' },
+                                { id: 'system',icon: <Monitor size={12} />, label: 'System' },
+                            ].map(m => (
+                                <button key={m.id} onClick={() => { setTheme(m.id); setThemeOpen(false); }}
+                                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors ${theme === m.id ? 'text-flood-400 bg-flood-600/10' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                                >
+                                    {m.icon} {m.label}
+                                </button>
+                            ))}
                         </div>
                     )}
                 </div>
 
-                {/* Notification Bell */}
+                {/* Notification bell */}
                 <div className="relative">
                     <button
-                        className="relative text-slate-500 hover:text-slate-900 dark:hover:text-white focus:outline-none p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-surface-border transition-colors"
-                        onClick={() => { setNotificationsOpen(!notificationsOpen); setProfileOpen(false); setThemeOpen(false); }}
+                        className="relative p-1.5 rounded text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors"
+                        onClick={() => { closeAll(); setNotifOpen(v => !v); }}
                     >
-                        <Bell className="w-6 h-6" />
+                        <Bell size={15} />
                         {unreadCount > 0 && (
-                            <span className="absolute top-0 right-0 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-600 rounded-full transform translate-x-1/4 -translate-y-1/4 animate-bounce">
-                                {unreadCount}
+                            <span className="absolute top-0.5 right-0.5 w-3 h-3 text-[8px] font-bold text-white bg-red-600 rounded-full flex items-center justify-center">
+                                {unreadCount > 9 ? '9+' : unreadCount}
                             </span>
                         )}
                     </button>
 
-                    {notificationsOpen && (
-                        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-surface-raised rounded-xl shadow-2xl py-0 border border-slate-200 dark:border-surface-border z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                            <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-between items-center">
-                                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                    <Bell className="w-4 h-4 text-red-500" /> Notifications
-                                </h3>
-                                <Badge variant="danger" className="text-[10px] px-2">{unreadCount} Active</Badge>
-                            </div>
-                            <div className="max-h-96 overflow-y-auto">
-                                {unreadCount === 0 ? (
-                                    <div className="p-8 text-center text-slate-400 text-sm italic">
-                                        No active situational alerts.
-                                    </div>
-                                ) : (
-                                    <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                                        {alertsData.results.slice(0, 5).map(alert => (
-                                            <Link
-                                                key={alert.id}
-                                                to={`/alerts/${alert.id}`}
-                                                onClick={() => setNotificationsOpen(false)}
-                                                className="block p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
-                                            >
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <Badge variant={alert.severity === 'critical' ? 'danger' : 'warning'} className="text-[9px] uppercase px-1.5 py-0.5">
-                                                        {alert.severity}
-                                                    </Badge>
-                                                    <span className="text-[10px] text-slate-400">{new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                </div>
-                                                <p className="text-sm font-semibold text-slate-800 dark:text-white line-clamp-1 group-hover:text-flood-600 transition-colors">
-                                                    {alert.title}
-                                                </p>
-                                                <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-tight">
-                                                    {alert.county_name} &middot; {alert.sub_county_name || 'All Areas'}
-                                                </p>
-                                            </Link>
-                                        ))}
-                                    </div>
+                    {notifOpen && (
+                        <div className="absolute right-0 mt-1 w-80 bg-surface-raised border border-surface-border rounded shadow-2xl z-50 overflow-hidden">
+                            <div className="px-4 py-2.5 border-b border-surface-border flex items-center justify-between">
+                                <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Active Alerts</span>
+                                {unreadCount > 0 && (
+                                    <span className="text-[10px] font-mono text-red-400">{unreadCount} active</span>
                                 )}
                             </div>
-                            <Link
-                                to="/alerts"
-                                onClick={() => setNotificationsOpen(false)}
-                                className="block p-3 bg-slate-50 dark:bg-slate-900/50 text-center text-xs font-bold text-flood-600 hover:text-flood-700 dark:text-flood-400 border-t border-slate-100 dark:border-slate-700"
+                            <div className="max-h-80 overflow-y-auto divide-y divide-surface-border">
+                                {unreadCount === 0 ? (
+                                    <div className="p-6 text-center text-slate-600 text-xs">No active alerts</div>
+                                ) : alertsData.results.slice(0, 6).map(alert => (
+                                    <Link
+                                        key={alert.id}
+                                        to={`/alerts/${alert.id}`}
+                                        onClick={closeAll}
+                                        className="block px-4 py-3 hover:bg-white/5 transition-colors"
+                                    >
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className={`text-[9px] font-mono font-bold uppercase tracking-wider ${alert.severity === 'critical' ? 'text-red-400' : alert.severity === 'high' ? 'text-amber-400' : 'text-flood-400'}`}>
+                                                {alert.severity}
+                                            </span>
+                                            <span className="text-[10px] text-slate-600 font-mono">
+                                                {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs font-medium text-slate-300 truncate">{alert.title}</p>
+                                        <p className="text-[10px] text-slate-600 mt-0.5 uppercase font-mono tracking-wide">{alert.county_name}</p>
+                                    </Link>
+                                ))}
+                            </div>
+                            <Link to="/alerts" onClick={closeAll}
+                                className="block px-4 py-2 text-center text-[10px] font-semibold text-flood-400 hover:text-flood-300 border-t border-surface-border bg-surface transition-colors uppercase tracking-wider"
                             >
                                 View All Alerts
                             </Link>
@@ -129,26 +158,43 @@ export default function Topbar({ onMenuClick, isSidebarCollapsed, isMobile }) {
                     )}
                 </div>
 
-                {/* Profile Dropdown */}
-                <div className="relative">
+                {/* Profile */}
+                <div className="relative ml-1">
                     <button
-                        className="flex items-center focus:outline-none"
-                        onClick={() => { setProfileOpen(!profileOpen); setThemeOpen(false); }}
+                        className="flex items-center gap-2 pl-2 pr-1 py-1 rounded hover:bg-white/5 transition-colors"
+                        onClick={() => { closeAll(); setProfileOpen(v => !v); }}
                     >
-                        <Avatar name="Jane Doe" size="sm" className="cursor-pointer" />
+                        <div className="text-right hidden sm:block">
+                            <p className="text-xs font-medium text-slate-300 leading-none">
+                                {user ? `${user.first_name} ${user.last_name}`.trim() || user.email : '—'}
+                            </p>
+                            <p className="text-[9px] font-mono text-slate-600 uppercase tracking-wider mt-0.5">
+                                {user ? (ROLE_LABELS[user.role] || user.role) : ''}
+                            </p>
+                        </div>
+                        <div className="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-[10px] font-semibold text-slate-300 font-mono shrink-0">
+                            {user ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() : '?'}
+                        </div>
                     </button>
 
                     {profileOpen && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-surface-raised rounded-lg shadow-lg py-1 border border-slate-200 dark:border-surface-border z-40">
-                            <a href="/profile" className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-border">Profile</a>
-                            <button
-                                onClick={() => {
-                                    setProfileOpen(false);
-                                    useAuthStore.getState().logout();
-                                }}
-                                className="w-full text-left block px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-surface-border"
+                        <div className="absolute right-0 mt-1 w-44 bg-surface-raised border border-surface-border rounded shadow-xl z-50 py-1">
+                            <Link to="/profile" onClick={closeAll}
+                                className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors"
                             >
-                                Sign Out
+                                <UserIcon size={12} /> My Profile
+                            </Link>
+                            <Link to="/settings" onClick={closeAll}
+                                className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors"
+                            >
+                                <Monitor size={12} /> Settings
+                            </Link>
+                            <div className="border-t border-surface-border my-1" />
+                            <button
+                                onClick={() => { closeAll(); useAuthStore.getState().logout(); navigate('/login'); }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-white/5 transition-colors"
+                            >
+                                <LogOut size={12} /> Sign Out
                             </button>
                         </div>
                     )}

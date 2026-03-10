@@ -1,222 +1,174 @@
 import React, { useState, useEffect } from 'react';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import client from '../../api/client';
-import Card from '../../components/ui/Card';
-import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-import { Bell, Map as MapIcon, ShieldAlert, CheckCircle2, Navigation, Clock, TriangleAlert } from 'lucide-react';
+import { Clock, Navigation, CheckCircle2 } from 'lucide-react';
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-
-// Local GeoJSON files for boundaries 
-import kenyaAreasRaw from "../../data/ken_admin2.geojson?raw";
-const kenyaAreas = JSON.parse(kenyaAreasRaw);
-const FOCUS_COUNTY_NAMES = new Set(["Kisumu", "Siaya", "Homa Bay"]);
-const focusAreasGeoJSON = {
-    ...kenyaAreas,
-    features: kenyaAreas.features.filter(
-        (f) => FOCUS_COUNTY_NAMES.has(f.properties.adm1_name)
-    )
-};
+import kenyaAreasRaw from '../../data/ken_admin2.geojson?raw';
 import useAlerts from '../../hooks/useAlerts';
 
-export default function ResponderDashboard() {
-    usePageTitle('Responder Dashboard');
-    const [counties, setCounties] = useState([]);
-    const [optimisticAcks, setOptimisticAcks] = useState(new Set());
+const kenyaAreas = JSON.parse(kenyaAreasRaw);
+const FOCUS = new Set(['Kisumu', 'Siaya', 'Homa Bay']);
+const focusGeoJSON = { ...kenyaAreas, features: kenyaAreas.features.filter(f => FOCUS.has(f.properties.adm1_name)) };
 
-    // Fetch alerts with polling
-    const { data: alertsData, loading: alertsLoading } = useAlerts(
-        { status: 'active' },
-        { pollInterval: 60000 }
+function Panel({ title, children, className = '' }) {
+    return (
+        <div className={`bg-surface-raised border border-surface-border rounded ${className}`}>
+            {title && (
+                <div className="px-5 py-3 border-b border-surface-border">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{title}</span>
+                </div>
+            )}
+            {children}
+        </div>
     );
+}
+
+function SeverityBar({ severity }) {
+    const colors = { critical: 'bg-red-500', high: 'bg-amber-500', medium: 'bg-flood-500', low: 'bg-emerald-500' };
+    return <div className={`w-1 self-stretch rounded-full ${colors[severity] || 'bg-slate-500'} shrink-0`} />;
+}
+
+export default function ResponderDashboard() {
+    usePageTitle('Responder — Field Operations');
+    const [counties, setCounties] = useState([]);
+    const [ackedIds, setAckedIds] = useState(new Set());
+
+    const { data: alertsData, loading } = useAlerts({ status: 'active' }, { pollInterval: 60000 });
 
     useEffect(() => {
-        fetchCounties();
+        client.get('/api/counties/').then(r => setCounties(r.data.slice(0, 3))).catch(() => {});
     }, []);
 
-    const fetchCounties = async () => {
-        try {
-            const res = await client.get('/api/counties/');
-            setCounties(res.data.slice(0, 3));
-        } catch (e) {
-            console.error("Failed to fetch counties", e);
-        }
-    };
-
-    // Derived and sorted alerts list
     const alerts = (alertsData?.results || [])
-        .filter(a => !optimisticAcks.has(a.id))
+        .filter(a => !ackedIds.has(a.id))
         .sort((a, b) => {
-            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-            const sevDiff = severityOrder[a.severity] - severityOrder[b.severity];
-            if (sevDiff !== 0) return sevDiff;
-            return new Date(b.created_at) - new Date(a.created_at);
+            const order = { critical: 0, high: 1, medium: 2, low: 3 };
+            return (order[a.severity] - order[b.severity]) || (new Date(b.created_at) - new Date(a.created_at));
         });
 
-    const handleAcknowledge = async (id) => {
-        // Optimistic update using a tracking set
-        setOptimisticAcks(prev => new Set(prev).add(id));
-
+    const handleAck = async (id) => {
+        setAckedIds(prev => new Set(prev).add(id));
         try {
             await client.patch(`/api/alerts/${id}/acknowledge/`);
-        } catch (e) {
-            console.error("Failed to acknowledge alert", e);
-            setOptimisticAcks(prev => {
-                const updated = new Set(prev);
-                updated.delete(id);
-                return updated;
-            });
+        } catch {
+            setAckedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
         }
     };
 
-    if (alertsLoading && alerts.length === 0 && counties.length === 0) return (
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-500 font-black animate-pulse uppercase tracking-widest text-xs">Initializing Field Communications...</p>
+    if (loading && alerts.length === 0) return (
+        <div className="flex items-center justify-center min-h-[400px] gap-3">
+            <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">Initializing field comms...</span>
         </div>
     );
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-700">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Active Alerts Feed - Primary */}
-                <div className="lg:col-span-3 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-3xl font-black text-slate-800 tracking-tighter flex items-center gap-4">
-                            <div className="p-3 bg-red-100 text-red-600 rounded-2xl shadow-sm animate-pulse-slow">
-                                <Bell className="w-7 h-7" />
-                            </div>
-                            Field Operations Queue
-                        </h2>
-                        <Badge variant="outline" className="font-black border-slate-200 px-4 py-1 text-slate-400 tracking-tighter">
-                            {alerts.length} PENDING RESPONSES
-                        </Badge>
+        <div className="space-y-4">
+            <div className="pb-4 border-b border-surface-border">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-slate-600 mb-1">Emergency Response Unit</p>
+                <div className="flex items-center justify-between">
+                    <h1 className="text-xl font-semibold text-slate-200">Field Operations Queue</h1>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded border border-surface-border">
+                        {alerts.length > 0 ? (
+                            <>
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                <span className="text-[10px] font-mono text-red-400">{alerts.length} PENDING RESPONSE</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span className="text-[10px] font-mono text-emerald-400">ALL CLEAR</span>
+                            </>
+                        )}
                     </div>
+                </div>
+            </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                {/* Alert queue */}
+                <div className="lg:col-span-3 space-y-3">
                     {alerts.length === 0 ? (
-                        <div className="border-2 border-slate-200 bg-slate-50/50 border-dashed rounded-[2rem] flex flex-col items-center justify-center p-20 text-center animate-in zoom-in-95 duration-500">
-                            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
-                                <CheckCircle2 className="w-10 h-10" />
+                        <Panel>
+                            <div className="flex flex-col items-center justify-center py-16 gap-3">
+                                <CheckCircle2 size={32} className="text-emerald-500" />
+                                <h3 className="text-sm font-semibold text-slate-300">Status: Nominal</h3>
+                                <p className="text-xs text-slate-600 text-center max-w-xs">
+                                    No active emergency dispatches assigned to your jurisdiction.
+                                </p>
                             </div>
-                            <h3 className="text-2xl font-black text-slate-800 tracking-tight">Status: Nominal</h3>
-                            <p className="text-sm text-slate-500 font-medium max-w-[280px] mt-2 leading-relaxed">No active emergency dispatches assigned to your jurisdiction at this time.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {alerts.map((alert) => (
-                                <Card key={alert.id} className="border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl overflow-hidden group">
-                                    <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100">
-                                        <div className="p-8 flex-1">
-                                            <div className="flex items-center gap-4 mb-4">
-                                                <Badge variant={alert.severity === 'critical' ? 'critical' : alert.severity === 'high' ? 'high' : 'warning'} pulse={alert.severity === 'critical'} className="font-black uppercase tracking-[0.2em] text-[10px] px-4 py-1 shadow-sm">
-                                                    {alert.severity}
-                                                </Badge>
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                    <div className="w-1 h-1 rounded-full bg-slate-300" />
-                                                    {alert.county_name} · {alert.sub_county_name || 'County Wide'}
-                                                </span>
-                                            </div>
-                                            <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-3 group-hover:text-blue-600 transition-colors leading-tight line-clamp-1">
-                                                {alert.title}
-                                            </h3>
-                                            <p className="text-sm text-slate-500 font-bold leading-relaxed italic opacity-80 border-l-4 border-slate-100 pl-4 py-1 line-clamp-2">
-                                                {alert.description}
-                                            </p>
-                                            <div className="flex items-center gap-6 mt-6 text-[10px] font-black text-slate-300 uppercase tracking-[0.1em]">
-                                                <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                <span className="flex items-center gap-2"><Navigation className="w-4 h-4" /> DISPATCHED BY {alert.created_by_name || 'OPS'}</span>
-                                            </div>
-                                        </div>
-                                        <div className="bg-slate-50/30 p-8 flex items-center justify-center shrink-0 w-full md:w-56">
-                                            <Button
-                                                onClick={() => handleAcknowledge(alert.id)}
-                                                className="w-full bg-slate-900 hover:bg-blue-600 text-white font-black h-16 rounded-2xl shadow-xl hover:shadow-blue-200 transition-all active:scale-90 group-hover:scale-105 duration-300 tracking-widest text-xs"
-                                            >
-                                                ACKNOWLEDGE
-                                            </Button>
-                                        </div>
+                        </Panel>
+                    ) : alerts.map(alert => (
+                        <div key={alert.id} className="bg-surface-raised border border-surface-border rounded flex overflow-hidden">
+                            <SeverityBar severity={alert.severity} />
+                            <div className="flex flex-col md:flex-row flex-1 divide-y md:divide-y-0 md:divide-x divide-surface-border">
+                                <div className="p-5 flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <span className={`text-[9px] font-mono font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border ${
+                                            alert.severity === 'critical' ? 'text-red-400 bg-red-900/20 border-red-800/30' :
+                                            alert.severity === 'high'     ? 'text-amber-400 bg-amber-900/20 border-amber-800/30' :
+                                            'text-flood-400 bg-flood-900/20 border-flood-800/30'
+                                        }`}>{alert.severity}</span>
+                                        <span className="text-[10px] font-mono text-slate-600">
+                                            {alert.county_name} · {alert.sub_county_name || 'County Wide'}
+                                        </span>
                                     </div>
-                                </Card>
-                            ))}
+                                    <h3 className="text-sm font-semibold text-slate-200 mb-2 leading-snug">{alert.title}</h3>
+                                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{alert.description}</p>
+                                    <div className="flex items-center gap-4 mt-3 text-[10px] font-mono text-slate-600 uppercase">
+                                        <span className="flex items-center gap-1.5">
+                                            <Clock size={11} />
+                                            {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                        <span className="flex items-center gap-1.5">
+                                            <Navigation size={11} />
+                                            {alert.created_by_name || 'OPS'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="px-5 py-4 flex items-center justify-center bg-surface/30 shrink-0 md:w-44">
+                                    <Button
+                                        onClick={() => handleAck(alert.id)}
+                                        className="w-full bg-flood-700 hover:bg-flood-600 text-white text-xs font-semibold py-2.5 rounded font-mono uppercase tracking-wider"
+                                    >
+                                        Acknowledge
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
-                    )}
+                    ))}
                 </div>
 
-                {/* Sidebar - Risk Summary & Map */}
-                <div className="space-y-8">
-                    <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-3 uppercase tracking-widest">
-                        <MapIcon className="w-6 h-6 text-indigo-500" /> Intelligence
-                    </h2>
-
-                    <div className="relative group/map">
-                        <Card className="border-slate-200 shadow-md overflow-hidden h-[200px] rounded-[2rem] bg-slate-50 ring-4 ring-slate-100 relative group">
-                            <MapContainer
-                                center={[0.0236, 34.7679]}
-                                zoom={8}
-                                zoomControl={false}
-                                dragging={false}
-                                scrollWheelZoom={false}
-                                doubleClickZoom={false}
-                                touchZoom={false}
-                                boxZoom={false}
-                                className="h-full w-full transition-all duration-700 group-hover:scale-105"
-                            >
-                                <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
-                                <GeoJSON
-                                    data={focusAreasGeoJSON}
-                                    style={(f) => {
-                                        const hasSevereAlert = alerts.some(a =>
-                                            a.sub_county_name === f.properties.adm2_name &&
-                                            (a.severity === 'critical' || a.severity === 'high')
-                                        );
-                                        return {
-                                            fillColor: hasSevereAlert ? '#ef4444' : '#94a3b8',
-                                            weight: 1,
-                                            opacity: 1,
-                                            color: 'white',
-                                            fillOpacity: hasSevereAlert ? 0.8 : 0.2
-                                        };
-                                    }}
-                                />
+                {/* Intel sidebar */}
+                <div className="space-y-4">
+                    <Panel title="Strategic Area">
+                        <div className="h-40">
+                            <MapContainer center={[0.0236, 34.7679]} zoom={8} zoomControl={false} dragging={false} scrollWheelZoom={false} doubleClickZoom={false} className="h-full w-full">
+                                <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                                <GeoJSON data={focusGeoJSON} style={f => {
+                                    const severe = alerts.some(a => a.sub_county_name === f.properties.adm2_name && ['critical','high'].includes(a.severity));
+                                    return { fillColor: severe ? '#ef4444' : '#334155', weight: 1, color: '#475569', fillOpacity: severe ? 0.7 : 0.3 };
+                                }} />
                             </MapContainer>
-                            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/10 to-transparent pointer-events-none" />
-                            <div className="absolute bottom-4 right-4 z-[400]">
-                                <Badge variant="outline" className="bg-white/90 backdrop-blur-md pointer-events-none font-black shadow-lg border-white text-[8px] uppercase tracking-widest px-2">
-                                    Strategic Focus
-                                </Badge>
-                            </div>
-                        </Card>
-                    </div>
-
-                    {/* Regional Summary */}
-                    <div className="space-y-4">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Jurisdiction Overview</p>
-                        {counties.length === 0 ? (
-                            <div className="p-4 text-center text-slate-400 italic text-xs">No regional data.</div>
-                        ) : counties.map(c => (
-                            <Card key={c.id} className="border-slate-200 shadow-sm p-5 hover:bg-slate-50 transition-all cursor-default rounded-3xl group/card relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-12 h-12 bg-blue-50/50 rounded-bl-full -mr-6 -mt-6 group-hover/card:scale-150 transition-transform duration-500" />
-                                <div className="flex justify-between items-start mb-3 relative z-10">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.name}</span>
-                                    <Badge variant={c.risk_category === 'High' ? 'danger' : 'info'} className="text-[8px] uppercase px-2 py-0.5 font-black ring-1 ring-white shadow-sm">
-                                        {c.risk_category}
-                                    </Badge>
-                                </div>
-                                <div className="flex items-end justify-between relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-2.5 h-2.5 rounded-full ${c.flood_probability >= 75 ? 'bg-red-500 animate-ping' : 'bg-blue-500'}`} />
-                                        <span className="text-3xl font-black text-slate-800 tabular-nums tracking-tighter">{c.flood_probability}%</span>
+                        </div>
+                    </Panel>
+                    <Panel title="Jurisdiction Risk">
+                        <div className="divide-y divide-surface-border">
+                            {counties.map(c => (
+                                <div key={c.id} className="flex items-center justify-between px-5 py-3">
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-300">{c.name}</p>
+                                        <p className="text-[10px] font-mono text-slate-600 uppercase">{c.lead_time_days}d lead</p>
                                     </div>
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1.5">{c.lead_time_days}D LEAD</span>
+                                    <div className="text-right">
+                                        <p className="text-sm font-mono text-slate-300 tabular-nums">{c.flood_probability}%</p>
+                                        <span className={`text-[9px] font-mono uppercase ${c.risk_category === 'High' ? 'text-red-400' : 'text-amber-400'}`}>{c.risk_category}</span>
+                                    </div>
                                 </div>
-                            </Card>
-                        ))}
-                    </div>
-
-                    <Button variant="outline" className="w-full border-slate-200 text-slate-400 font-black h-16 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all duration-300 shadow-sm uppercase tracking-widest text-[10px]">
-                        <Navigation className="w-5 h-5" /> Open Tactical GIS
-                    </Button>
+                            ))}
+                        </div>
+                    </Panel>
                 </div>
             </div>
         </div>
