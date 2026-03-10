@@ -4,35 +4,35 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 import useSubCountyRisk from "../hooks/useSubCountyRisk";
+import useCounties from "../hooks/useCounties";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import kenyaAreasRaw from "../data/ken_admin2.geojson?raw";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { Camera, Mic, Ruler, History, Truck, Zap, Activity, TrendingUp, Users, Brain } from "lucide-react";
+import { Camera, Mic, Ruler, History, Truck, Zap, Activity, TrendingUp, Users, Brain, MapPin, Send, Loader2 } from "lucide-react";
+import client from "../api/client";
+import { useAuthStore } from "../store/authStore";
 
 const kenyaAreas = JSON.parse(kenyaAreasRaw);
-const FOCUS_COUNTY_NAMES = new Set(["Kisumu", "Siaya", "Homa Bay"]);
+
+const FOCUS_COUNTY_NAMES = new Set([
+  "Homa Bay", "Kajiado", "Kiambu", "Kisumu", "Machakos", "Nairobi", "Siaya"
+]);
 
 /* ─── PALETTE ───────────────────────────────────────────────────────────────── */
 const P = {
-  accent: "#0891b2", // flood-600
-  accent2: "#10b981", // success (emerald)
-  warn: "#f59e0b", // warning (amber)
-  danger: "#ef4444", // danger (red)
-  crit: "#dc2626", // strong danger (red-600)
+  accent: "#0891b2",
+  accent2: "#10b981",
+  warn: "#f59e0b",
+  danger: "#ef4444",
+  crit: "#dc2626",
 };
 
 /* ─── DATA HELPERS ──────────────────────────────────────────────────────────── */
-const getRegionData = (areaName, subCounties, dayOffset = 0) => {
+const getRegionData = (areaName, subCounties) => {
   const backendArea = subCounties?.find(s => s.name === areaName);
-  let baseProb = backendArea?.flood_probability || Math.floor(Math.random() * 20 + 10);
-
-  let prob = baseProb;
-  if (dayOffset !== 0) {
-    const factor = dayOffset > 0 ? (1 + (dayOffset * 0.15)) : (1 + (dayOffset * 0.1));
-    prob = Math.min(99, Math.max(5, Math.round(baseProb * factor)));
-  }
+  const prob = backendArea?.flood_probability ?? 0;
 
   let nLevel = "NORMAL";
   let cColor = P.accent2;
@@ -43,42 +43,34 @@ const getRegionData = (areaName, subCounties, dayOffset = 0) => {
   return {
     name: areaName,
     level: nLevel,
-    prob: prob,
+    prob: Math.round(prob),
     color: cColor,
     displaced: Math.round(prob * 820),
     water: (prob * 0.03).toFixed(2),
     rain: Math.round(prob * 1.8),
+    riskCategory: backendArea?.risk_category ?? "Low",
+    leadTime: backendArea?.lead_time_days ?? 7,
   };
 };
 
-function buildReplaySeries(startDateStr, d) {
+function buildReplaySeries(d) {
   if (!d) return [];
   const peak = d.prob;
-  const maxDisp = d.displaced;
-  const maxWater = parseFloat(d.water);
-  const maxRain = d.rain;
   const days = 14;
-
+  const today = new Date();
   return Array.from({ length: days }, (_, i) => {
     const t = i / (days - 1);
     const peakT = 0.35;
     const probCurve = peak * Math.exp(-Math.pow((t - peakT) * 3.5, 2)) + 5;
-    const dispCurve = i <= 4 ? maxDisp * 0.9 * (i / 4) : maxDisp * 0.9 * (1 - (i - 4) / 12);
-    const waterCurve = i <= 4 ? maxWater * (i / 4) * 1.05 : maxWater * (1 - (i - 4) / 14) * 0.9;
-
-    let label = `D+${i + 1}`;
-    if (startDateStr) {
-      const base = new Date(startDateStr);
-      base.setDate(base.getDate() + i);
-      label = base.toLocaleDateString("en-GB", { month: "short", day: "numeric" });
-    }
-
+    const dispCurve = i <= 4 ? d.displaced * 0.9 * (i / 4) : d.displaced * 0.9 * (1 - (i - 4) / 12);
+    const base = new Date(today);
+    base.setDate(base.getDate() - (days - 1 - i));
     return {
-      label,
+      label: base.toLocaleDateString("en-GB", { month: "short", day: "numeric" }),
       prob: Math.round(Math.max(5, Math.min(96, probCurve))),
       displaced: Math.max(0, Math.round(dispCurve)),
-      waterLevel: Math.round(Math.max(0.3, waterCurve) * 100) / 100,
-      rainfall: Math.round(maxRain * (0.5 + Math.random() * 0.5)),
+      waterLevel: Math.round(Math.max(0.3, d.water * (0.6 + t * 0.8)) * 100) / 100,
+      rainfall: Math.round(d.rain * (0.3 + Math.random() * 0.7)),
     };
   });
 }
@@ -90,7 +82,7 @@ function riskStroke(p) {
   return P.accent2;
 }
 
-/* ─── UI COMPONENTS ────────────────────────────────────────────────────────── */
+/* ─── UI COMPONENTS ─────────────────────────────────────────────────────────── */
 function Label({ children, className = "" }) {
   return <div className={`text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ${className}`}>{children}</div>;
 }
@@ -100,7 +92,7 @@ function BarRow({ label, value, color }) {
     <div className="mb-2">
       <div className="flex justify-between text-[10px] mb-1 text-slate-600 dark:text-slate-400">
         <span className="font-bold tracking-tight uppercase truncate pr-2">{label}</span>
-        <span style={{ color }} className="font-black tabular-nums">{value}%</span>
+        <span style={{ color }} className="font-black tabular-nums">{Math.round(value)}%</span>
       </div>
       <div className="h-1 bg-slate-100 dark:bg-surface border border-slate-200/50 dark:border-surface-border rounded-full overflow-hidden">
         <div className="h-full transition-all duration-700 ease-out" style={{ width: `${value}%`, backgroundColor: color }} />
@@ -112,89 +104,81 @@ function BarRow({ label, value, color }) {
 function Toast({ msg }) {
   if (!msg) return null;
   return (
-    <div
-      className="fixed bottom-4 right-4 z-[100] bg-white dark:bg-surface border-l-4 border-flood-500 rounded-sm px-4 py-2.5 shadow-xl animate-in slide-in-from-right-10 duration-300"
-    >
-      <div className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100" dangerouslySetInnerHTML={{ __html: msg }} />
+    <div className="fixed bottom-4 right-4 z-[100] bg-white dark:bg-surface border-l-4 border-flood-500 rounded-sm px-4 py-2.5 shadow-xl animate-in slide-in-from-right-10 duration-300">
+      <div className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">{msg}</div>
     </div>
   );
 }
 
-/* ─── FEATURE COMPONENTS ──────────────────────────────────────────────────── */
-function SubmitModal({ type, onClose, onToast }) {
-  const titles = { photo: "Tactical Photo", voice: "Ops Voice", water: "Gauge Index" };
-  const icons = { photo: <Camera size={18} />, voice: <Mic size={18} />, water: <Ruler size={18} /> };
-  const [loading, setLoading] = useState(false);
+/* ─── COUNTY SELECTOR ────────────────────────────────────────────────────────── */
+function CountyPicker({ counties, selectedCounty, onSelect }) {
+  return (
+    <div className="p-3 border-b border-slate-100 dark:border-surface-border">
+      <Label className="mb-2">County Focus</Label>
+      <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto custom-scrollbar">
+        {counties.map(c => (
+          <button
+            key={c.id}
+            onClick={() => onSelect(c.name)}
+            className={`flex items-center justify-between px-2 py-1.5 rounded-sm text-[10px] font-black uppercase tracking-wide transition-all border ${selectedCounty === c.name
+              ? "bg-flood-600/10 border-flood-500/40 text-flood-600 dark:text-flood-400"
+              : "border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-surface/50"
+              }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <MapPin size={8} className="shrink-0" />
+              {c.name}
+            </span>
+            {c.flood_probability > 0 && (
+              <span style={{ color: riskStroke(c.flood_probability) }} className="tabular-nums">
+                {Math.round(c.flood_probability)}%
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-  const handleSubmit = () => {
+/* ─── AI PANEL (WIRED) ───────────────────────────────────────────────────────── */
+function AIPanel({ region, countyName }) {
+  const { user } = useAuthStore();
+  const [messages, setMessages] = useState([
+    {
+      isAi: true,
+      text: `CrisisLens AI ready. I have live risk data for ${countyName || "all monitored counties"}. Ask me about flood probability, evacuation routes, or response priorities.`,
+    }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput("");
+    setMessages(prev => [...prev, { isAi: false, text: userMsg }]);
     setLoading(true);
-    setTimeout(() => {
-      onToast(`Signal transmitted.`);
-      onClose();
-    }, 1500);
+    try {
+      const res = await client.post("/api/ai/chat/", {
+        message: userMsg,
+        county: countyName || "",
+        area: region || "",
+      });
+      setMessages(prev => [...prev, { isAi: true, text: res.data.message }]);
+    } catch (err) {
+      const errMsg = err.response?.data?.error || "AI service unavailable. Try again.";
+      setMessages(prev => [...prev, { isAi: true, text: errMsg, isError: true }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-xs p-4 animate-in zoom-in-95 duration-200">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-flood-600 dark:text-flood-400">{icons[type]}</span>
-            <h2 className="text-xs font-black uppercase tracking-[0.2em] dark:text-white">{titles[type]}</h2>
-          </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors text-xs font-black">✕</button>
-        </div>
-        <div className="space-y-4">
-          <div className="h-24 border border-dashed border-slate-200 dark:border-surface-border rounded-sm flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50 dark:bg-surface/30">
-            <span className="text-flood-500">{icons[type]}</span>
-            <span className="text-[8px] font-black uppercase tracking-[0.2em]">Upload Intel</span>
-          </div>
-          <Button className="w-full h-9 font-black uppercase tracking-widest text-[9px]" onClick={handleSubmit} disabled={loading}>
-            {loading ? "..." : "Transmit Signal"}
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function MapSVG({ region, onRegion }) {
-  const regions = { Kisumu: { prob: 72, color: P.danger }, Nyando: { prob: 88, color: P.crit }, Siaya: { prob: 45, color: P.warn }, "Homa Bay": { prob: 32, color: P.accent2 } };
-  return (
-    <div className="relative h-44 bg-slate-50 dark:bg-surface-border/5 flex items-center justify-center overflow-hidden transition-colors">
-      <div className="absolute inset-0 opacity-5 dark:opacity-10 flex items-center justify-center font-black text-4xl pointer-events-none select-none uppercase tracking-tighter">Ops View</div>
-      <div className="flex gap-2 p-4 flex-wrap justify-center relative z-10">
-        {Object.keys(regions).map(r => (
-          <div key={r} onClick={() => onRegion(r)} className={`px-3 py-2 rounded-sm border cursor-pointer transition-all ${region === r ? "bg-white dark:bg-surface border-flood-500" : "bg-white/50 dark:bg-surface/50 border-transparent hover:border-slate-200"}`}>
-            <div className="text-[9px] font-black uppercase mb-1 dark:text-white truncate lg:max-w-[60px]">{r}</div>
-            <div className="text-[9px] font-black tracking-tighter" style={{ color: regions[r].color }}>{regions[r].prob}%</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Calendar({ selectedDayIndex, setSelectedDayIndex }) {
-  return (
-    <div className="p-3 border-t border-slate-100 dark:border-surface-border">
-      <Label className="mb-3">Temporal Index</Label>
-      <div className="grid grid-cols-7 gap-1">
-        {Array.from({ length: 31 }).map((_, i) => (
-          <div
-            key={i}
-            onClick={() => setSelectedDayIndex(i)}
-            className={`h-6 rounded-sm flex items-center justify-center text-[9px] font-black cursor-pointer transition-all ${selectedDayIndex === i ? "bg-flood-600 text-white" : i === 21 ? "bg-slate-200 dark:bg-surface-border text-slate-800" : "hover:bg-slate-100 dark:hover:bg-surface text-slate-400"}`}
-          >
-            {i + 1}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AIPanel({ region }) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="p-3 border-b border-slate-100 dark:border-surface-border bg-slate-50/50 dark:bg-surface/50">
@@ -204,96 +188,159 @@ function AIPanel({ region }) {
           </div>
           <div>
             <div className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-tighter">Intelligence Layer</div>
-            <div className="text-[8px] text-emerald-500 font-bold tracking-widest uppercase">Validated Ground Truth</div>
+            <div className="text-[8px] text-emerald-500 font-bold tracking-widest uppercase flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+              Live Data Connected
+            </div>
           </div>
         </div>
       </div>
-      <div className="flex-1 p-4 overflow-y-auto space-y-3 custom-scrollbar">
-        <div className="p-2.5 bg-flood-50/30 dark:bg-flood-950/10 border border-flood-100 dark:border-flood-900/20 rounded-sm">
-          <p className="text-[10px] leading-snug dark:text-slate-300 italic">Analyzed signals for <b>{region}</b>: divergent flows detected in Nyando basin. Lead window suggests pre-positioning required at T+36h.</p>
-        </div>
-      </div>
-      <div className="p-3 bg-slate-50/50 dark:bg-surface/50 border-t border-slate-100 dark:border-surface-border flex gap-2">
-        <div className="flex-1 h-8 bg-white dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm px-3 flex items-center text-[9px] text-slate-400 uppercase font-black">Query Intelligence...</div>
-        <Button size="sm" className="h-8 w-8 p-0 text-[10px] font-black">ASK</Button>
-      </div>
-    </div>
-  );
-}
 
-function SignalChart({ d }) {
-  return (
-    <div className="h-[100px] flex items-end gap-0.5 px-0.5">
-      {Array.from({ length: 32 }).map((_, i) => (
-        <div key={i} className="flex-1 bg-flood-500/20 hover:bg-flood-500 transition-all" style={{ height: `${20 + Math.random() * d.prob}%` }} />
-      ))}
+      <div className="flex-1 p-3 overflow-y-auto space-y-2 custom-scrollbar">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.isAi ? "justify-start" : "justify-end"}`}>
+            <div className={`max-w-[90%] px-3 py-2 rounded-sm text-[10px] leading-relaxed ${m.isAi
+              ? m.isError
+                ? "bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 text-red-700 dark:text-red-400"
+                : "bg-flood-50/40 dark:bg-flood-950/10 border border-flood-100 dark:border-flood-900/20 text-slate-700 dark:text-slate-300"
+              : "bg-slate-800 dark:bg-slate-700 text-white"
+              }`}>
+              {m.isAi ? (
+                <div className="whitespace-pre-wrap">{m.text}</div>
+              ) : (
+                <p>{m.text}</p>
+              )}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="px-3 py-2 bg-flood-50/40 dark:bg-flood-950/10 border border-flood-100 dark:border-flood-900/20 rounded-sm flex items-center gap-2 text-[10px] text-slate-400">
+              <Loader2 size={10} className="animate-spin" /> Analysing...
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      <div className="p-3 bg-slate-50/50 dark:bg-surface/50 border-t border-slate-100 dark:border-surface-border flex gap-2">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
+          placeholder="Ask about flood risk, evacuation, response..."
+          className="flex-1 h-8 bg-white dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm px-3 text-[10px] text-slate-700 dark:text-slate-300 placeholder:text-slate-400 focus:outline-none focus:border-flood-500 transition-all"
+        />
+        <button
+          onClick={send}
+          disabled={loading || !input.trim()}
+          className="h-8 w-8 flex items-center justify-center bg-flood-600 hover:bg-flood-700 disabled:opacity-40 text-white rounded-sm transition-all"
+        >
+          <Send size={12} />
+        </button>
+      </div>
     </div>
   );
 }
 
 /* ─── PAGE COMPONENTS ──────────────────────────────────────────────────────── */
-function PageOperations({ region, setRegion, d, filteredAreas, selectedDayIndex, setSelectedDayIndex }) {
+function PageOperations({ region, setRegion, d, filteredAreas, counties, selectedCounty, onCountySelect }) {
   return (
     <div className="flex flex-col lg:flex-row w-full h-full overflow-hidden bg-white dark:bg-surface transition-colors duration-200">
-      {/* Sidebar - Compact */}
+      {/* Sidebar */}
       <div className="w-full lg:w-72 flex flex-col border-r border-slate-100 dark:border-surface-border overflow-y-auto custom-scrollbar">
-        <MapSVG region={region} onRegion={setRegion} />
+        <CountyPicker counties={counties} selectedCounty={selectedCounty} onSelect={onCountySelect} />
+
         <div className="p-4 border-t border-slate-100 dark:border-surface-border flex-1">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               <Activity size={10} className="text-slate-400" />
-              <Label>Telemetry Status</Label>
+              <Label>Sub-County Risk</Label>
             </div>
             <Badge variant="outline" className="text-[7px] tracking-widest px-1 font-black">LIVE</Badge>
           </div>
-          <div className="space-y-0.5 h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-            {filteredAreas.map(s => (
-              <BarRow key={s.name} label={s.name} value={s.flood_probability} color={riskStroke(s.flood_probability)} />
+          <div className="space-y-0.5 max-h-[280px] overflow-y-auto pr-2 custom-scrollbar">
+            {filteredAreas.length === 0 ? (
+              <p className="text-[9px] text-slate-400 italic uppercase tracking-widest text-center py-4">No data for selected county</p>
+            ) : filteredAreas.map(s => (
+              <div
+                key={s.name}
+                onClick={() => setRegion(s.name)}
+                className={`cursor-pointer rounded-sm px-2 py-1 transition-all ${region === s.name ? "bg-flood-50 dark:bg-flood-950/10" : "hover:bg-slate-50 dark:hover:bg-surface/50"}`}
+              >
+                <BarRow label={s.name} value={s.flood_probability} color={riskStroke(s.flood_probability)} />
+              </div>
             ))}
           </div>
         </div>
-        <Calendar selectedDayIndex={selectedDayIndex} setSelectedDayIndex={setSelectedDayIndex} />
       </div>
 
-      {/* Main Panel - Compact */}
+      {/* Main Panel */}
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50/30 dark:bg-surface/30 px-4 py-4 overflow-y-auto custom-scrollbar">
         <header className="mb-4 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">{d.name} Tactical</h1>
-              <Badge style={{ backgroundColor: d.color }} className="text-white h-5 px-1.5 text-[8px] font-black tracking-widest">{d.level} {d.prob}%</Badge>
+              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">
+                {d.name || selectedCounty}
+              </h1>
+              {d.prob > 0 && (
+                <Badge style={{ backgroundColor: d.color }} className="text-white h-5 px-1.5 text-[8px] font-black tracking-widest">
+                  {d.level} {d.prob}%
+                </Badge>
+              )}
             </div>
-            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mt-1">Sector Index: Lower Nyando Basin Ops</div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" className="h-7 text-[8px] px-2 font-black">HEALTH</Button>
-            <Button className="h-7 text-[8px] px-2 font-black uppercase tracking-widest">OPS BRIEF</Button>
+            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mt-1">
+              {selectedCounty} County · Sub-county: {d.name || "Select sector below"}
+            </div>
           </div>
         </header>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="space-y-4">
-            <Card className="p-4">
-              <Label className="mb-4">Risk Waveform (24h)</Label>
-              <SignalChart d={d} />
-            </Card>
-
-            <div className="grid grid-cols-2 gap-4">
+            {/* Metrics */}
+            <div className="grid grid-cols-3 gap-3">
               <Card className="p-3">
-                <Label className="mb-2">Water (m)</Label>
-                <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{d.water}</div>
-                <div className="text-[8px] text-red-500 font-black mt-1 uppercase italic tracking-tighter">↑ 0.12m SURGE</div>
+                <Label className="mb-1">Flood Risk</Label>
+                <div className="text-xl font-black tabular-nums" style={{ color: d.color }}>{d.prob}%</div>
+                <div className="text-[8px] text-slate-400 font-black mt-1 uppercase tracking-tighter">{d.riskCategory}</div>
               </Card>
               <Card className="p-3">
-                <Label className="mb-2">Displ. Est.</Label>
+                <Label className="mb-1">Water Est.</Label>
+                <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{d.water}m</div>
+                <div className="text-[8px] text-slate-400 font-black mt-1 uppercase tracking-tighter">{d.leadTime}d lead</div>
+              </Card>
+              <Card className="p-3">
+                <Label className="mb-1">Displaced</Label>
                 <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{d.displaced.toLocaleString()}</div>
-                <div className="text-[8px] text-amber-500 font-black mt-1 uppercase italic tracking-tighter">CRITICAL DELTA</div>
+                <div className="text-[8px] text-amber-500 font-black mt-1 uppercase italic tracking-tighter">Estimate</div>
               </Card>
             </div>
+
+            {/* Risk trend chart */}
+            {d.prob > 0 && (
+              <Card className="p-4">
+                <Label className="mb-4">14-Day Risk Wave</Label>
+                <div className="h-[110px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={buildReplaySeries(d)} margin={{ top: 2, right: 4, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.08} />
+                      <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700 }} tickLine={false} axisLine={false} interval={3} />
+                      <YAxis tick={{ fontSize: 7 }} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}
+                        formatter={(v, name) => [`${v}${name === "prob" ? "%" : ""}`, name.toUpperCase()]}
+                      />
+                      <Area type="monotone" dataKey="prob" stroke={d.color} strokeWidth={2} fill={d.color} fillOpacity={0.08} dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            )}
           </div>
 
-          <Card className="min-h-[300px] flex flex-col overflow-hidden">
-            <AIPanel region={region} />
+          {/* AI Panel */}
+          <Card className="min-h-[320px] flex flex-col overflow-hidden">
+            <AIPanel region={d.name} countyName={selectedCounty} />
           </Card>
         </div>
       </div>
@@ -301,62 +348,123 @@ function PageOperations({ region, setRegion, d, filteredAreas, selectedDayIndex,
   );
 }
 
-function PageForecast({ d }) {
+function PageForecast({ d, filteredAreas }) {
+  const forecast = [
+    { day: "D+1", prob: Math.min(99, Math.round(d.prob * 0.85)), rain: Math.round(d.rain * 0.7) },
+    { day: "D+2", prob: Math.min(99, Math.round(d.prob * 0.95)), rain: Math.round(d.rain * 0.9) },
+    { day: "D+3", prob: d.prob, rain: d.rain },
+    { day: "D+4", prob: Math.min(99, Math.round(d.prob * 1.1)), rain: Math.round(d.rain * 1.1) },
+    { day: "D+5", prob: Math.min(99, Math.round(d.prob * 0.9)), rain: Math.round(d.rain * 0.8) },
+  ];
+  const peak = Math.max(...forecast.map(f => f.prob));
+
   return (
     <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500 h-full overflow-y-auto custom-scrollbar bg-white dark:bg-surface transition-colors">
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-surface-border pb-4">
         <div>
-          <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">{d.name} Forecast</h1>
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Probabilistic Modeling • Real-time</p>
+          <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">{d.name || "Select Sector"} Forecast</h1>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Probabilistic Modelling · Real-time</p>
         </div>
         <Badge style={{ backgroundColor: d.color }} className="h-6 px-2 text-white text-[9px] font-black">{d.level} {d.prob}%</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-4 lg:col-span-2">
-          <Label className="mb-6">5-Day Risk Trajectory</Label>
+          <Label className="mb-4">5-Day Risk Trajectory</Label>
           <div className="flex gap-2 pb-2 overflow-x-auto custom-scrollbar">
-            {[[42, "110mm"], [68, "130mm"], [d.prob, "138mm"], [84, "125mm"], [71, "90mm"]].map(([prob, rain], i) => (
-              <div key={i} className={`flex-1 min-w-[100px] p-3 rounded-sm border transition-all ${i === 2 ? "bg-flood-50/30 dark:bg-flood-950/20 border-flood-500" : "bg-slate-50 dark:bg-surface border-transparent"}`}>
-                <div className="text-[8px] font-black text-slate-400 mb-2 uppercase tracking-widest">D+{i + 1}</div>
-                <div className="text-xl font-black text-slate-900 dark:text-white mb-1 tabular-nums">{prob}%</div>
-                <div className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">{rain} Precipitation</div>
+            {forecast.map(({ day, prob, rain }, i) => (
+              <div key={i} className={`flex-1 min-w-[90px] p-3 rounded-sm border transition-all ${i === 2 ? "bg-flood-50/30 dark:bg-flood-950/20 border-flood-500" : "bg-slate-50 dark:bg-surface border-transparent"}`}>
+                <div className="text-[8px] font-black text-slate-400 mb-2 uppercase tracking-widest">{day}</div>
+                <div className="text-xl font-black tabular-nums" style={{ color: riskStroke(prob) }}>{prob}%</div>
+                <div className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter mt-1">{rain}mm rain</div>
               </div>
             ))}
           </div>
         </Card>
 
         <Card className="p-4 flex flex-col items-center justify-center bg-flood-50/30 dark:bg-surface-raised">
-          <div className="relative w-32 h-32 flex items-center justify-center">
+          <div className="relative w-28 h-28 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90">
-              <circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-100 dark:text-surface-border" />
-              <circle cx="64" cy="64" r="56" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray="351.8" strokeDashoffset={351.8 * (1 - d.prob / 100)} strokeLinecap="round" style={{ color: d.color }} />
+              <circle cx="56" cy="56" r="48" fill="none" stroke="currentColor" strokeWidth="7" className="text-slate-100 dark:text-surface-border" />
+              <circle cx="56" cy="56" r="48" fill="none" stroke="currentColor" strokeWidth="7"
+                strokeDasharray="301.6" strokeDashoffset={301.6 * (1 - peak / 100)}
+                strokeLinecap="round" style={{ color: riskStroke(peak) }} />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{d.prob}%</span>
-              <Label>MAX PEAK</Label>
+              <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{peak}%</span>
+              <Label>PEAK</Label>
             </div>
           </div>
+          <p className="text-[9px] text-slate-400 font-bold text-center mt-3 uppercase tracking-widest">5-day peak risk projection</p>
         </Card>
       </div>
+
+      {/* Sub-county comparison */}
+      {filteredAreas.length > 0 && (
+        <Card className="p-4">
+          <Label className="mb-4">County Sub-sector Comparison</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
+            {filteredAreas.slice(0, 10).map(s => (
+              <BarRow key={s.name} label={s.name} value={s.flood_probability} color={riskStroke(s.flood_probability)} />
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
 
-function PageIntelligence({ d }) {
+function PageIntelligence({ d, selectedCounty }) {
+  const INFRA = {
+    Kisumu: [
+      { type: "bridge", t: "Nyando Bridge", d: "Isolates basin at water level > 2.1m." },
+      { type: "truck", t: "Ahero-Kisumu Highway", d: "Access lost when Nyando River overtops banks." },
+    ],
+    Siaya: [
+      { type: "bridge", t: "Awach River Crossings", d: "Multiple low-lying bridges at risk during Lake Victoria surges." },
+      { type: "truck", t: "Siaya-Kisumu Road", d: "Prone to flooding at Yala swamp intersections." },
+    ],
+    "Homa Bay": [
+      { type: "bridge", t: "Rachuonyo Lakeshore Road", d: "Flooded during lake level rise > 1134.5m MSL." },
+      { type: "truck", t: "Homa Bay-Kisii Corridor", d: "Landslide and flooding risk during long rains." },
+    ],
+    Nairobi: [
+      { type: "bridge", t: "Ngong River Crossings (Kibera/Mukuru)", d: "20-year flood return period; informal settlements at high risk." },
+      { type: "truck", t: "Outer Ring Road", d: "Flooding at Mathare Valley impedes emergency access." },
+    ],
+    Kiambu: [
+      { type: "bridge", t: "Ruiru River Bridge", d: "Flash flooding risk during intense rainfall events." },
+      { type: "truck", t: "Thika Superhighway Underpasses", d: "Drainage overwhelmed during heavy rains." },
+    ],
+    Machakos: [
+      { type: "truck", t: "Mombasa Road Corridor", d: "Washout risk at seasonal river crossings." },
+      { type: "bridge", t: "Athi River Bridge", d: "High flood risk during El Niño years." },
+    ],
+    Kajiado: [
+      { type: "truck", t: "Namanga Road", d: "Flash flood risk in semi-arid valleys during rare rainfall." },
+      { type: "bridge", t: "Ol Tukai Causeway", d: "Seasonal flooding isolates Amboseli region." },
+    ],
+  };
+
+  const infra = INFRA[selectedCounty] || [];
+
   return (
     <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500 h-full overflow-y-auto custom-scrollbar bg-white dark:bg-surface transition-colors">
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-surface-border pb-4">
-        <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Memory Bank: {d.name}</h1>
+        <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Tactical Intel: {selectedCounty}</h1>
         <Badge variant="outline" className="text-[8px] h-6 px-2 font-black uppercase">Historical Telemetry</Badge>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-4">
-          <Label className="mb-4 flex items-center gap-2"><span className="text-emerald-500 text-[6px]">●</span> Intelligence cycles</Label>
+          <Label className="mb-4 flex items-center gap-2"><span className="text-emerald-500 text-[6px]">●</span> Historical Flood Events</Label>
           <div className="space-y-4">
-            {[{ yr: "2018", t: "Low-Pressure Sync", d: "Bridge failure at 2.1m. Pre-staging was delayed by 12h." }, { yr: "2020", t: "Overflow Event", d: "Victoria levels blocked basin drainage for 14d." }].map(({ yr, t, d }) => (
+            {[
+              { yr: "2020", t: "Long Rains Overflow", d: `Lake Victoria levels peaked; low-lying areas of ${selectedCounty} impacted for 14+ days. Displacement > 20,000.` },
+              { yr: "2018", t: "El Niño Flash Flooding", d: "Seasonal river torrents caused dam failures at Patel Dam. Emergency protocols activated county-wide." },
+              { yr: "2015", t: "March–May Peak", d: "Above-average rainfall caused widespread crop loss and disease outbreaks in displaced camps." },
+            ].map(({ yr, t, d }) => (
               <div key={yr} className="flex gap-4 pb-4 border-b border-slate-50 dark:border-surface-border last:border-0 last:pb-0">
-                <div className="text-[9px] font-black text-slate-400 mt-0.5 tabular-nums grayscale">{yr}</div>
+                <div className="text-[9px] font-black text-slate-400 mt-0.5 tabular-nums">{yr}</div>
                 <div>
                   <div className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">{t}</div>
                   <p className="text-[10px] text-slate-500 italic leading-snug">"{d}"</p>
@@ -366,17 +474,19 @@ function PageIntelligence({ d }) {
           </div>
         </Card>
         <Card className="p-4">
-          <Label className="mb-4 flex items-center gap-2"><span className="text-red-500 text-[6px]">●</span> Tactical Vulnerabilities</Label>
+          <Label className="mb-4 flex items-center gap-2"><span className="text-red-500 text-[6px]">●</span> Critical Infrastructure at Risk</Label>
           <div className="space-y-2">
-            {[["bridge", "Nyando Bridge", "Limit: 2.1m. Isolates basin."], ["truck", "Relief Corridor", "Road access lost at 1.8m."]].map(([type, t, d]) => (
+            {infra.length > 0 ? infra.map(({ type, t, d }) => (
               <div key={t} className="p-2.5 bg-slate-50 dark:bg-surface border border-slate-100 dark:border-surface-border rounded-sm flex items-start gap-3">
-                <span className="text-flood-500 mt-0.5">{type === 'bridge' ? <History size={14} /> : <Truck size={14} />}</span>
+                <span className="text-flood-500 mt-0.5">{type === "bridge" ? <History size={14} /> : <Truck size={14} />}</span>
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-tight mb-0.5">{t}</div>
                   <p className="text-[9px] text-slate-500 leading-tight">{d}</p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-[9px] text-slate-400 italic uppercase tracking-widest text-center py-4">No infrastructure data for this county</p>
+            )}
           </div>
         </Card>
       </div>
@@ -385,47 +495,61 @@ function PageIntelligence({ d }) {
 }
 
 function PageReplay({ d }) {
-  const [pct, setPct] = useState(35);
-  const seriesData = useMemo(() => buildReplaySeries("2023-03-14", d), [d]);
-  const cur = seriesData[Math.min(Math.floor(pct / 100 * (seriesData.length - 1)), seriesData.length - 1)];
+  const [pct, setPct] = useState(50);
+  const seriesData = useMemo(() => buildReplaySeries(d), [d.prob]);
+  const idx = Math.min(Math.floor(pct / 100 * (seriesData.length - 1)), seriesData.length - 1);
+  const cur = seriesData[idx];
 
   return (
     <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500 h-full overflow-y-auto custom-scrollbar bg-white dark:bg-surface transition-colors">
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-surface-border pb-4">
-        <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Ops Replay Analysis</h1>
+        <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">14-Day Event Replay: {d.name || "Select sector"}</h1>
         <Badge className="h-6 px-2 text-[8px] font-black uppercase tracking-widest">{cur?.label}</Badge>
       </div>
+
       <Card className="p-4">
         <div className="flex justify-between items-center mb-4">
           <Label>Temporal Scrub</Label>
-          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: riskStroke(cur?.prob) }}>RISK: {cur?.prob}%</span>
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: riskStroke(cur?.prob || 0) }}>
+            Risk: {cur?.prob || 0}% · Displaced: {(cur?.displaced || 0).toLocaleString()}
+          </span>
         </div>
-        <input type="range" className="w-full accent-flood-600 h-1.5 bg-slate-100 dark:bg-surface-border rounded-full" value={pct} onChange={e => setPct(e.target.value)} />
+        <input type="range" min={0} max={100} className="w-full accent-flood-600 h-1.5 bg-slate-100 dark:bg-surface-border rounded-full" value={pct} onChange={e => setPct(Number(e.target.value))} />
       </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-4">
-          <Label className="mb-4">Temporal risk wave</Label>
-          <div className="h-[120px]">
+          <Label className="mb-4">Flood Probability Wave</Label>
+          <div className="h-[130px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={seriesData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+              <AreaChart data={seriesData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.08} />
+                <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700 }} tickLine={false} axisLine={false} interval={3} />
+                <YAxis tick={{ fontSize: 7 }} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}
+                  formatter={(v) => [`${v}%`, "Probability"]}
+                />
                 <Area type="monotone" dataKey="prob" stroke={P.accent} strokeWidth={2} fill={P.accent} fillOpacity={0.1} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
         <Card className="p-4">
-          <Label className="mb-4">Historical Log</Label>
-          <div className="space-y-3">
-            {[["D+1", "Alert Cascade", "SMS systems fired."], ["D+3", "County Lag", "Protocol delay noted."]].map(([t, k, v]) => (
-              <div key={t + k} className="flex gap-4 text-[10px] items-start">
-                <span className="font-black text-slate-400 w-8 shrink-0">{t}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-black uppercase tracking-tight truncate">{k}</div>
-                  <div className="text-slate-500 text-[9px] tracking-tight">{v}</div>
-                </div>
-              </div>
-            ))}
+          <Label className="mb-4">Displacement Trend</Label>
+          <div className="h-[130px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={seriesData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.08} />
+                <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700 }} tickLine={false} axisLine={false} interval={3} />
+                <YAxis tick={{ fontSize: 7 }} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}
+                  formatter={(v) => [v.toLocaleString(), "Displaced"]}
+                />
+                <Area type="monotone" dataKey="displaced" stroke={P.warn} strokeWidth={2} fill={P.warn} fillOpacity={0.1} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </Card>
       </div>
@@ -435,34 +559,35 @@ function PageReplay({ d }) {
 
 function PageCommunity({ onToast }) {
   const [modal, setModal] = useState(null);
-  const icons = { photo: <Camera size={18} />, zap: <Zap size={14} />, activity: <Activity size={14} /> };
   return (
     <div className="w-full p-6 flex flex-col gap-6 animate-in fade-in duration-500 h-full overflow-y-auto custom-scrollbar bg-white dark:bg-surface transition-colors">
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-surface-border pb-4">
         <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Ground Truth Signal</h1>
-        <Badge className="bg-emerald-500 text-white text-[9px] h-6 px-2 font-black uppercase tracking-widest">312 ACTIVE UNITS</Badge>
+        <Badge className="bg-emerald-500 text-white text-[9px] h-6 px-2 font-black uppercase tracking-widest">Ingest Open</Badge>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-4 lg:col-span-2">
           <Label className="mb-4">Community Ingest Log</Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[[icons.photo, "Nyando Bridge", "12m ago", "Verified"], [icons.zap, "Power Grid", "28m ago", "Critical"]].map(([i, t, m, s]) => (
+            {[
+              [<Camera size={16} />, "Nyando Bridge", "12m ago", "Verified"],
+              [<Zap size={14} />, "Power Grid Alert", "28m ago", "Critical"],
+            ].map(([icon, t, m, s]) => (
               <div key={t} className="p-3 border border-slate-100 dark:border-surface-border rounded-sm hover:bg-slate-50 dark:hover:bg-surface/50 transition-colors cursor-pointer">
-                <span className="text-flood-600 dark:text-flood-400 mb-2 block">{i}</span>
+                <span className="text-flood-600 dark:text-flood-400 mb-2 block">{icon}</span>
                 <div className="text-[11px] font-black uppercase dark:text-white truncate">{t}</div>
-                <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{m} • {s}</div>
+                <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{m} · {s}</div>
               </div>
             ))}
           </div>
         </Card>
         <Card className="p-4 flex flex-col items-center justify-center border-dashed border-2 bg-slate-50/20 dark:bg-surface/5 text-center transition-colors">
-          <span className="text-flood-500 mb-3">{icons.photo}</span>
+          <Camera size={24} className="text-flood-500 mb-3" />
           <div className="text-xs font-black uppercase tracking-[0.2em] mb-2 dark:text-white">Relay Ground Truth</div>
-          <p className="text-[9px] text-slate-500 font-bold mb-4 leading-tight">Transmit visual confirmation to calibrate AI models.</p>
-          <Button size="sm" className="w-full h-8 text-[9px] font-black uppercase tracking-widest" onClick={() => setModal("photo")}>LAUNCH RELAY</Button>
+          <p className="text-[9px] text-slate-500 font-bold mb-4 leading-tight">Transmit field photos to calibrate AI models.</p>
+          <Button size="sm" className="w-full h-8 text-[9px] font-black uppercase tracking-widest" onClick={() => { onToast("Upload feature coming soon"); }}>Launch Relay</Button>
         </Card>
       </div>
-      {modal && <SubmitModal type={modal} onClose={() => setModal(null)} onToast={onToast} />}
     </div>
   );
 }
@@ -470,70 +595,95 @@ function PageCommunity({ onToast }) {
 /* ─── ROOT APP ─────────────────────────────────────────────────────────────── */
 export default function ReportsPage() {
   usePageTitle("Operational Reports");
-  const [region, setRegion] = useState("Nyando");
+  const [selectedCounty, setSelectedCounty] = useState("Kisumu");
+  const [region, setRegion] = useState("");
   const [page, setPage] = useState("operations");
-  const [toast, setToast] = useState({ msg: "" });
+  const [toast, setToast] = useState("");
   const toastTimer = useRef(null);
 
+  const { data: allCounties } = useCounties();
   const { data: subCountiesData } = useSubCountyRisk();
+
+  // Counties filtered to focus set
+  const counties = useMemo(() => {
+    if (!allCounties) return [];
+    return allCounties.filter(c => FOCUS_COUNTY_NAMES.has(c.name))
+      .sort((a, b) => b.flood_probability - a.flood_probability);
+  }, [allCounties]);
+
+  // Sub-counties for the selected county only
   const filteredAreas = useMemo(() => {
     if (!subCountiesData) return [];
-    return subCountiesData.filter((s) => kenyaAreas.features.some(f => f.properties.adm2_name === s.name && FOCUS_COUNTY_NAMES.has(f.properties.adm1_name)))
+    return subCountiesData
+      .filter(s => kenyaAreas.features.some(
+        f => f.properties.adm2_name === s.name && f.properties.adm1_name === selectedCounty
+      ))
       .sort((a, b) => b.flood_probability - a.flood_probability);
-  }, [subCountiesData]);
+  }, [subCountiesData, selectedCounty]);
+
+  // Auto-select highest risk sub-county when county changes
+  useEffect(() => {
+    if (filteredAreas.length > 0) setRegion(filteredAreas[0].name);
+    else setRegion("");
+  }, [selectedCounty, filteredAreas.length]);
 
   const showToast = (msg) => {
     clearTimeout(toastTimer.current);
-    setToast({ msg });
-    toastTimer.current = setTimeout(() => setToast({ msg: "" }), 2500);
+    setToast(msg);
+    toastTimer.current = setTimeout(() => setToast(""), 2500);
   };
 
-  const d = getRegionData(region, subCountiesData, 0); // Day offset logic simplified for app integration
+  const handleCountySelect = (name) => {
+    setSelectedCounty(name);
+    showToast(`📍 County: ${name.toUpperCase()}`);
+  };
+
+  const d = getRegionData(region, subCountiesData);
+
+  const NAV = {
+    operations: { icon: <Activity size={14} />, label: "Operations" },
+    forecast: { icon: <TrendingUp size={14} />, label: "Forecast" },
+    intelligence: { icon: <Brain size={14} />, label: "Intelligence" },
+    replay: { icon: <History size={14} />, label: "Replay" },
+    community: { icon: <Users size={14} />, label: "Community" },
+  };
 
   const pages = {
-    operations: <PageOperations region={region} setRegion={r => { setRegion(r); showToast(`📍 Location: ${r.toUpperCase()}`); }} d={d} filteredAreas={filteredAreas} selectedDayIndex={21} setSelectedDayIndex={() => { }} />,
-    forecast: <PageForecast d={d} />,
-    intelligence: <PageIntelligence d={d} />,
+    operations: <PageOperations region={region} setRegion={r => { setRegion(r); showToast(`📍 Sector: ${r.toUpperCase()}`); }} d={d} filteredAreas={filteredAreas} counties={counties} selectedCounty={selectedCounty} onCountySelect={handleCountySelect} />,
+    forecast: <PageForecast d={d} filteredAreas={filteredAreas} />,
+    intelligence: <PageIntelligence d={d} selectedCounty={selectedCounty} />,
     replay: <PageReplay d={d} />,
-    community: <PageCommunity onToast={showToast} />
+    community: <PageCommunity onToast={showToast} />,
   };
 
   return (
     <div className="flex h-full bg-white dark:bg-surface selection:bg-flood-500/30 transition-colors animate-in fade-in duration-300 overflow-hidden">
-      {/* Internal Sub-navigation Sidebar */}
+      {/* Sub-navigation */}
       <nav className="w-14 md:w-48 border-r border-slate-100 dark:border-surface-border bg-slate-50/30 dark:bg-surface-raised flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-100 dark:border-surface-border hidden md:block">
           <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Operational View</p>
+          <p className="text-[10px] font-black text-slate-700 dark:text-slate-200 mt-0.5 uppercase">{selectedCounty}</p>
         </div>
         <div className="flex-1 py-4 px-2 space-y-1">
-          {Object.keys(pages).map(p => {
-            const icons = {
-              operations: <Activity size={14} />,
-              forecast: <TrendingUp size={14} />,
-              intelligence: <Brain size={14} />,
-              replay: <History size={14} />,
-              community: <Users size={14} />
-            };
-            return (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] transition-all rounded-sm border ${page === p
-                  ? "bg-flood-600/10 text-flood-600 dark:text-flood-400 border-flood-600/20"
-                  : "text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent hover:bg-slate-100 dark:hover:bg-white/5"}`}
-              >
-                <span className="shrink-0">{icons[p]}</span>
-                <span className="hidden md:block truncate">{p}</span>
-              </button>
-            );
-          })}
+          {Object.entries(NAV).map(([key, { icon, label }]) => (
+            <button
+              key={key}
+              onClick={() => setPage(key)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] transition-all rounded-sm border ${page === key
+                ? "bg-flood-600/10 text-flood-600 dark:text-flood-400 border-flood-600/20"
+                : "text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent hover:bg-slate-100 dark:hover:bg-white/5"}`}
+            >
+              <span className="shrink-0">{icon}</span>
+              <span className="hidden md:block truncate">{label}</span>
+            </button>
+          ))}
         </div>
       </nav>
 
       <div className="flex-1 overflow-hidden flex flex-col">
         {pages[page]}
       </div>
-      <Toast msg={toast.msg} />
+      <Toast msg={toast} />
     </div>
   );
 }
