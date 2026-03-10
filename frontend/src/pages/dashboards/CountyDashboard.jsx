@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import client from '../../api/client';
-import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthStore } from '../../store/authStore';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { ShieldAlert, Bell, PlusCircle, ArrowRight, Droplets, MapPin, AlertTriangle } from 'lucide-react';

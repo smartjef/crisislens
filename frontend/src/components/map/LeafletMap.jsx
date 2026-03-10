@@ -81,7 +81,7 @@ export default function LeafletMap({
                 zoom={9}
                 scrollWheelZoom
                 className="h-full w-full"
-                whenCreated={setMapInstance}
+                ref={setMapInstance}
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

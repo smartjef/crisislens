@@ -50,8 +50,6 @@ export default function AIChatPanel({ county, area, onClose }) {
             setMessages(prev => [...prev, res.data]);
         } catch (e) {
             setError(e.response?.data?.error || "Failed to get AI response");
-            // Remove the optimistic message if it failed and wasn't a rate limit error? 
-            // Actually leave it for context so they can retry.
         } finally {
             setLoading(false);
         }
