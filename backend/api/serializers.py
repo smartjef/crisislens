@@ -56,8 +56,8 @@ class AIChatMessageSerializer(serializers.ModelSerializer):
 
 class AIChatRequestSerializer(serializers.Serializer):
     message = serializers.CharField()
-    county = serializers.CharField(required=False, allow_blank=True)
-    area = serializers.CharField(required=False, allow_blank=True)
+    county = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    area = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
 
 class FloodObservationSerializer(serializers.ModelSerializer):

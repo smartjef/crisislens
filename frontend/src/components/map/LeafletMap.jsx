@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import L from "leaflet";
-import { GeoJSON, MapContainer, TileLayer } from "react-leaflet";
+import { GeoJSON, MapContainer, TileLayer, Marker, Tooltip } from "react-leaflet";
 import { getFloodFillColor } from "../../utils/floodColours";
 
 export default function LeafletMap({
@@ -21,7 +21,7 @@ export default function LeafletMap({
 
         if (selectedCounties.length === 0) {
             // Revert to national/regional overview
-            mapInstance.setView([-0.2, 34.6], 9);
+            mapInstance.setView([-1.2863, 36.8172], 7); // Center on Kenya/Nairobi
             return;
         }
 
@@ -35,6 +35,23 @@ export default function LeafletMap({
             mapInstance.fitBounds(tempLayer.getBounds(), { padding: [30, 30], maxZoom: 10 });
         }
     }, [selectedCounties, mapInstance, focusCountiesGeoJSON]);
+
+    // Simulated Responder Data
+    const responders = [
+        { id: 1, name: "Unit-01 (Kibra)", pos: [-1.31, 36.79], status: "Active" },
+        { id: 2, name: "Unit-04 (Mathare)", pos: [-1.26, 36.86], status: "Active" },
+        { id: 3, name: "Unit-08 (Nyando)", pos: [-0.17, 34.91], status: "En Route" },
+        { id: 4, name: "Med-02 (Kisumu)", pos: [-0.10, 34.75], status: "At Station" },
+    ];
+
+    const responderIcon = L.divIcon({
+        html: `<div class="w-4 h-4 bg-flood-600 border-2 border-white rounded-full animate-pulse shadow-lg flex items-center justify-center">
+                 <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
+               </div>`,
+        className: "custom-div-icon",
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+    });
 
     // County outlines — transparent fill so sub-county color shading shows through if selected.
     // If no specific county is selected, tint them slightly so the user knows they are clickable.
@@ -143,6 +160,18 @@ export default function LeafletMap({
                         }}
                     />
                 )}
+
+                {/* Responder GPS Markers (Simulated) */}
+                {responders.map(r => (
+                    <Marker key={r.id} position={r.pos} icon={responderIcon}>
+                        <Tooltip sticky>
+                            <div className="text-[10px] font-black uppercase">
+                                <span className="text-flood-600">${r.name}</span><br />
+                                <span className="text-slate-400">Status: ${r.status}</span>
+                            </div>
+                        </Tooltip>
+                    </Marker>
+                ))}
             </MapContainer>
         </div>
     );

@@ -5,8 +5,8 @@ import Skeleton from "../components/ui/Skeleton";
 import ErrorCard from "../components/ui/ErrorCard";
 import LeafletMap from "../components/map/LeafletMap";
 import CountySelector from "../components/map/CountySelector";
-import SubCountyPanel from "../components/map/SubCountyPanel";
 import MapLegend from "../components/map/MapLegend";
+import IntelSidebar from "../components/tactical/IntelSidebar";
 
 // Local GeoJSON files for boundaries 
 import kenyaCountiesRaw from "../data/ken_admin1.geojson?raw";
@@ -17,7 +17,7 @@ const kenyaAreas = JSON.parse(kenyaAreasRaw);
 
 // We still restrict map rendering to specific focus counties 
 // to avoid loading down the UI with unused polygons
-const FOCUS_COUNTY_NAMES = new Set(["Kisumu", "Siaya", "Homa Bay"]);
+const FOCUS_COUNTY_NAMES = new Set(["Kisumu", "Siaya", "Homa Bay", "Nairobi", "Kiambu", "Machakos", "Kajiado"]);
 
 const focusCountiesGeoJSON = {
     ...kenyaCounties,
@@ -33,9 +33,8 @@ const focusAreasGeoJSON = {
     )
 };
 
-
 export default function MapPage() {
-    const [selectedCounties, setSelectedCounties] = useState(["Kisumu", "Siaya", "Homa Bay"]);
+    const [selectedCounties, setSelectedCounties] = useState(["Nairobi", "Kisumu", "Siaya", "Homa Bay"]);
     const [selectedAreaName, setSelectedAreaName] = useState("");
     const [mapInstance, setMapInstance] = useState(null);
 
@@ -146,20 +145,57 @@ export default function MapPage() {
     }
 
     return (
-        <div className="flex h-full gap-3 p-3 bg-white dark:bg-surface relative overflow-hidden transition-colors duration-200">
-            {/* Left side: Map and selectors */}
-            <div className="flex-1 flex flex-col gap-3">
-                {/* Header/Legend bar - Highly Compact */}
-                <div className="flex justify-between items-center bg-white dark:bg-surface-raised p-3 rounded-sm border border-slate-200 dark:border-surface-border transition-colors">
-                    <div>
-                        <h1 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Tactical Risk Map</h1>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Lake Victoria Basin Monitoring Engine</p>
-                    </div>
-                    <MapLegend />
+        <div className="flex h-full bg-slate-50 dark:bg-surface overflow-hidden transition-colors duration-200">
+            {/* 1. LEFT CONSOLE: Tactical Controls & Alerts */}
+            <aside className="w-72 flex flex-col border-r border-slate-200 dark:border-surface-border bg-white dark:bg-surface transition-colors">
+                <div className="p-4 border-b border-slate-100 dark:border-surface-border">
+                    <h1 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider mb-1">Tactical Hub</h1>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest leading-none">Regional Monitoring</p>
                 </div>
 
-                {/* The map wrapper */}
-                <div className="flex-1 rounded-sm overflow-hidden bg-white dark:bg-surface-raised border border-slate-200 dark:border-surface-border p-1 relative z-0 transition-colors">
+                <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+                    {/* Focus Selector */}
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Jurisdictions</h3>
+                            <button onClick={() => setSelectedCounties(["Nairobi", "Kisumu", "Siaya", "Homa Bay", "Kiambu", "Machakos", "Kajiado"])} className="text-[8px] font-bold text-flood-600 uppercase hover:underline">Select All</button>
+                        </div>
+                        <CountySelector
+                            counties={counties}
+                            selectedCounties={selectedCounties}
+                            onToggleCounty={handleCountyToggle}
+                        />
+                    </div>
+
+                    {/* Quick Sector Zoom */}
+                    {selectedCounties.length === 1 && (
+                        <div className="p-3 bg-slate-50 dark:bg-surface-border/5 border border-slate-200 dark:border-surface-border rounded-sm">
+                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Sector Zoom</label>
+                            <select
+                                className="w-full px-2 py-1.5 bg-white dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm text-[10px] font-black text-slate-700 dark:text-slate-200 outline-none focus:border-flood-500 transition-all cursor-pointer uppercase"
+                                value={selectedAreaName}
+                                onChange={(e) => setSelectedAreaName(e.target.value)}
+                            >
+                                <option value="">-- All Sectors --</option>
+                                {subCounties
+                                    .filter(s => kenyaAreas.features.some(f => f.properties.adm2_name === s.name && f.properties.adm1_name === selectedCounties[0]))
+                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                    .map(area => (
+                                        <option key={area.id} value={area.name}>{area.name}</option>
+                                    ))}
+                            </select>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-slate-100 dark:border-surface-border bg-slate-50/50 dark:bg-surface-border/5">
+                    <MapLegend />
+                </div>
+            </aside>
+
+            {/* 2. CENTER CANVAS: GIS Map */}
+            <main className="flex-1 relative flex flex-col min-w-0">
+                <div className="flex-1 relative z-0">
                     <LeafletMap
                         focusCountiesGeoJSON={focusCountiesGeoJSON}
                         focusAreasGeoJSON={focusAreasGeoJSON}
@@ -172,85 +208,23 @@ export default function MapPage() {
                         selectedCounties={selectedCounties}
                     />
                 </div>
+            </main>
 
-                {/* Bottom county selector pills - Compact */}
-                <div className="bg-white dark:bg-surface-raised p-3 rounded-sm border border-slate-200 dark:border-surface-border transition-colors">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-2">
-                        Operational Jurisdictions
-                    </h3>
-                    <CountySelector
-                        counties={counties}
-                        selectedCounties={selectedCounties}
-                        onToggleCounty={handleCountyToggle}
-                    />
-
-                    {/* Sub-county dropdown filter - Compact */}
-                    {selectedCounties.length === 1 && (
-                        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-surface-border flex items-center gap-3">
-                            <label className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-tighter">Sector Zoom:</label>
-                            <select
-                                className="px-2 py-1 bg-slate-50 dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm text-[10px] font-black text-slate-700 dark:text-slate-200 outline-none focus:border-flood-500 transition-all cursor-pointer uppercase"
-                                value={selectedAreaName}
-                                onChange={(e) => {
-                                    setSelectedAreaName(e.target.value);
-                                }}
-                            >
-                                <option value="">-- All Sectors in {selectedCounties[0]} --</option>
-                                {subCounties
-                                    .filter(s => kenyaAreas.features.some(f => f.properties.adm2_name === s.name && f.properties.adm1_name === selectedCounties[0]))
-                                    .sort((a, b) => a.name.localeCompare(b.name))
-                                    .map(area => (
-                                        <option key={area.id} value={area.name}>{area.name}</option>
-                                    ))}
-                            </select>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Mobile Backdrop */}
-            {isPanelOpen && (
-                <div
-                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] md:hidden animate-in fade-in duration-300"
-                    onClick={() => setSelectedAreaName("")}
-                />
-            )}
-
-            {/* Right side / Bottom: Detail Panel (slides in if open) - Compact width */}
-            <div className={`
-                fixed bottom-0 left-0 right-0 h-[60vh] w-full transform transition-transform duration-300 ease-out z-[100]
-                ${isPanelOpen ? "translate-y-0" : "translate-y-full"}
-                md:relative md:top-0 md:h-full md:w-80 md:translate-y-0
-                md:transform-none
+            {/* 3. RIGHT SIDEBAR: Intel & Detailed Risk */}
+            <aside className={`
+                w-80 border-l border-slate-200 dark:border-surface-border transition-all duration-300 transform bg-white dark:bg-surface
+                ${isPanelOpen ? "translate-x-0" : "translate-x-full fixed right-0 top-0 h-full"}
             `}>
-                <div className={`
-                    w-full h-full transform transition-transform duration-300 ease-out
-                    md:transform md:transition-transform md:duration-300
-                    ${isPanelOpen ? "md:translate-x-0" : "md:translate-x-full"}
-                `}>
-                    {isPanelOpen && (
-                        <div className="w-full h-full rounded-t-sm md:rounded-sm overflow-hidden border-t border-x md:border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised transition-colors">
-                            {subCountiesError ? (
-                                <div className="h-full p-4">
-                                    <ErrorCard message="Failed to load sub-county data." onRetry={refetchSubCounties} />
-                                </div>
-                            ) : subCountiesLoading ? (
-                                <div className="w-full h-full flex flex-col gap-3 p-4">
-                                    <Skeleton className="h-20 w-full rounded-sm" />
-                                    <Skeleton className="flex-1 w-full rounded-sm" />
-                                </div>
-                            ) : (
-                                <SubCountyPanel
-                                    county={panelCountyObj}
-                                    areaRiskEntry={selectedAreaObj}
-                                    topAreas={topAreas}
-                                    onClose={() => setSelectedAreaName("")}
-                                />
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
+                {isPanelOpen && (
+                    <IntelSidebar
+                        county={panelCountyObj}
+                        area={selectedAreaName}
+                        areaRiskEntry={selectedAreaObj}
+                        topAreas={topAreas}
+                        onClose={() => setSelectedAreaName("")}
+                    />
+                )}
+            </aside>
         </div>
     );
 }

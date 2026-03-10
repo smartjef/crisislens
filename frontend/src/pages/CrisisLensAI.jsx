@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
 import { useSearchParams } from "react-router-dom";
 import useSubCountyRisk from "../hooks/useSubCountyRisk";
 import client from "../api/client";
@@ -105,8 +106,8 @@ export default function CrisisLensAI() {
     try {
       const res = await client.post("/api/ai/chat/", {
         message: userMsg,
-        county: countyContext,
-        area: areaContext
+        county: countyContext || 'National',
+        area: areaContext || 'General'
       });
       setMessages([...newMsgs, { role: "assistant", msg: res.data.message }]);
     } catch {
@@ -137,7 +138,13 @@ export default function CrisisLensAI() {
                       {m.role === "user" ? "Operator" : m.role === "system" ? "Protocol" : "Intelligence"}
                     </div>
                     <div className={`p-3 rounded-sm text-xs leading-snug transition-colors border ${m.role === "user" ? "bg-white dark:bg-surface-raised border-slate-200 dark:border-surface-border text-slate-800 dark:text-slate-200" : m.role === "system" ? "bg-slate-100/50 dark:bg-surface italic text-slate-500 border-transparent" : "bg-white dark:bg-surface border-slate-200 dark:border-surface-border text-slate-800 dark:text-slate-200"}`}>
-                      {m.msg}
+                      {m.role === "assistant" ? (
+                        <div className="prose-tactical dark:prose-invert">
+                          <ReactMarkdown>{m.msg}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        m.msg
+                      )}
                     </div>
                   </div>
                 </div>

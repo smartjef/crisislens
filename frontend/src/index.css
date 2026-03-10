@@ -3,7 +3,10 @@
 @tailwind utilities;
 
 @layer base {
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
@@ -18,11 +21,22 @@
   }
 
   /* Leaflet z-index — prevents map controls from going behind modals */
-  .leaflet-pane        { z-index: 10; }
+  .leaflet-pane {
+    z-index: 10;
+  }
+
   .leaflet-top,
-  .leaflet-bottom      { z-index: 20; }
-  .leaflet-control     { z-index: 20; }
-  .leaflet-popup-pane  { z-index: 30; }
+  .leaflet-bottom {
+    z-index: 20;
+  }
+
+  .leaflet-control {
+    z-index: 20;
+  }
+
+  .leaflet-popup-pane {
+    z-index: 30;
+  }
 }
 
 /* ==========================================================================
@@ -44,8 +58,8 @@
   @apply bg-slate-900 text-slate-50 p-8 rounded-sm;
 }
 
-.map-wrapper { 
-  @apply rounded-sm overflow-hidden border border-slate-200 dark:border-surface-border; 
+.map-wrapper {
+  @apply rounded-sm overflow-hidden border border-slate-200 dark:border-surface-border;
 }
 
 .details {
@@ -71,8 +85,17 @@
 .ai-message {
   @apply p-3 rounded-sm bg-slate-50 dark:bg-surface border border-slate-200 dark:border-surface-border;
 }
-.ai-message.user      { background: #e0f2fe; border-color: #bae6fd; }
-.ai-message.assistant { background: #0f172a; color: #f8fafc; }
+
+.ai-message.user {
+  background: #e0f2fe;
+  border-color: #bae6fd;
+}
+
+.ai-message.assistant {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
 .ai-role {
   display: block;
   font-size: 12px;
@@ -81,28 +104,98 @@
   margin-bottom: 6px;
   opacity: 0.7;
 }
-.ai-empty { margin: 0; color: #64748b; }
+
+.ai-empty {
+  margin: 0;
+  color: #64748b;
+}
 
 /* Focus page */
-.focus-page   { gap: 24px; }
-.focus-hero   { background: linear-gradient(120deg, #0f172a, #1e3a8a); }
+.focus-page {
+  gap: 24px;
+}
+
+.focus-hero {
+  background: linear-gradient(120deg, #0f172a, #1e3a8a);
+}
+
 .focus-section {
   @apply bg-white dark:bg-surface-raised rounded-sm p-6 border border-slate-200 dark:border-surface-border;
 }
 
-.focus-map-wrapper { 
-  @apply rounded-sm overflow-hidden border border-slate-200 dark:border-surface-border; 
+.focus-map-wrapper {
+  @apply rounded-sm overflow-hidden border border-slate-200 dark:border-surface-border;
 }
 
-.focus-card { 
-  @apply bg-slate-50 dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm p-4; 
+.focus-card {
+  @apply bg-slate-50 dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm p-4;
 }
-.focus-card h3 { margin-top: 0; margin-bottom: 10px; }
-.focus-card ul { margin: 8px 0 0; padding-left: 18px; }
+
+.focus-card h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.focus-card ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
 
 @media (max-width: 768px) {
-  .map { height: 360px; }
+  .map {
+    height: 360px;
+  }
 }
-/* ==========================================================================
-   END LEGACY COMPAT
-   ========================================================================== */
+
+/* Tactical Markdown Styling */
+.prose-tactical {
+  @apply text-[11px] leading-relaxed;
+}
+
+.prose-tactical p {
+  @apply mb-3 last:mb-0;
+}
+
+.prose-tactical ul,
+.prose-tactical ol {
+  @apply mb-3 last:mb-0 pl-4;
+}
+
+.prose-tactical li {
+  @apply mb-1.5 last:mb-0 relative;
+}
+
+.prose-tactical ul li::before {
+  content: "•";
+  @apply absolute -left-4 text-flood-600 font-black;
+}
+
+.prose-tactical ol {
+  list-style-type: decimal;
+}
+
+.prose-tactical h1,
+.prose-tactical h2,
+.prose-tactical h3 {
+  @apply font-black uppercase tracking-wider mb-2 mt-4 first:mt-0 text-slate-900 dark:text-white;
+}
+
+.prose-tactical h1 {
+  @apply text-xs underline decoration-flood-600 decoration-2 underline-offset-4;
+}
+
+.prose-tactical h2 {
+  @apply text-[10px];
+}
+
+.prose-tactical h3 {
+  @apply text-[9px] text-slate-500;
+}
+
+.prose-tactical strong {
+  @apply font-black text-slate-900 dark:text-flood-400;
+}
+
+.prose-tactical em {
+  @apply italic text-slate-600 dark:text-slate-400;
+}

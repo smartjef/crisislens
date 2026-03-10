@@ -31,6 +31,10 @@ class Command(BaseCommand):
             {"name": "Kisumu", "code": "KSM", "population": 1155574, "centroid_lat": -0.102, "centroid_lon": 34.762},
             {"name": "Siaya", "code": "SIA", "population": 993183, "centroid_lat": 0.061, "centroid_lon": 34.288},
             {"name": "Homa Bay", "code": "HMB", "population": 1131950, "centroid_lat": -0.527, "centroid_lon": 34.457},
+            {"name": "Nairobi", "code": "NBO", "population": 4397073, "centroid_lat": -1.286, "centroid_lon": 36.817},
+            {"name": "Kiambu", "code": "KBU", "population": 2417735, "centroid_lat": -1.146, "centroid_lon": 36.954},
+            {"name": "Machakos", "code": "MCK", "population": 1421932, "centroid_lat": -1.517, "centroid_lon": 37.262},
+            {"name": "Kajiado", "code": "KJD", "population": 1117840, "centroid_lat": -2.098, "centroid_lon": 36.782},
         ]
         
         counties_created = 0

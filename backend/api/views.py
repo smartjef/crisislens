@@ -147,7 +147,7 @@ def ai_feedback(request):
         "https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
-            "model": "gpt-4o",
+            "model": "gpt-4o-mini",
             "messages": [
                 {"role": "system", "content": "You are a crisis response analyst."},
                 {"role": "user", "content": prompt},
@@ -231,7 +231,7 @@ class AIChatViewSet(viewsets.ViewSet):
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}"},
                     json={
-                        "model": "gpt-4o",
+                        "model": "gpt-4o-mini",
                         "messages": [
                             {"role": "system", "content": "You are CrisisLens, an AI decision support assistant."},
                             {"role": "user", "content": prompt},

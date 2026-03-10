@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, X, Sparkles, AlertCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import client from '../../api/client';
 import Spinner from '../ui/Spinner';
 
@@ -44,8 +45,8 @@ export default function AIChatPanel({ county, area, onClose }) {
         try {
             const res = await client.post('/api/ai/chat/', {
                 message: text,
-                county: county,
-                area: area
+                county: county || 'National',
+                area: area || 'General'
             });
             setMessages(prev => [...prev, res.data]);
         } catch (e) {
@@ -102,7 +103,24 @@ export default function AIChatPanel({ county, area, onClose }) {
                                     {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                             </div>
-                            <p className="text-[11px] font-bold leading-relaxed whitespace-pre-wrap">{m.message}</p>
+                            import ReactMarkdown from 'react-markdown';
+
+                            // ... in message loop
+                            {m.is_ai ? (
+                                <div className="prose-tactical dark:prose-invert">
+                                    <ReactMarkdown>{m.message}</ReactMarkdown>
+                                </div>
+                            ) : (
+                                {
+                                    m.is_ai ? (
+                                        <div className="prose-tactical dark:prose-invert">
+                                            <ReactMarkdown>{m.message}</ReactMarkdown>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[11px] font-bold leading-relaxed whitespace-pre-wrap">{m.message}</p>
+                                    )
+                                }
+                            )}
                         </div>
                     </div>
                 ))}
