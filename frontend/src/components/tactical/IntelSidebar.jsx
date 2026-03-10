@@ -3,11 +3,18 @@ import ReactMarkdown from 'react-markdown';
 import { Bot, Sparkles, ChevronRight, Info, AlertTriangle, MessageSquare } from 'lucide-react';
 import AIChatPanel from '../ai/AIChatPanel';
 import Badge from '../ui/Badge';
+import client from '../../api/client';
 
 export default function IntelSidebar({ county, area, areaRiskEntry, topAreas = [], selectedHotspot, selectedCustomPin, onClose, onDeployDrone }) {
     const [mode, setMode] = useState('risk'); // 'risk', 'briefing', 'chat'
     const [briefing, setBriefing] = useState('');
     const [loadingBriefing, setLoadingBriefing] = useState(false);
+    const [prefillMessage, setPrefillMessage] = useState('');
+
+    const handleDecisionSupport = (question) => {
+        setPrefillMessage(question);
+        setMode('chat');
+    };
 
     // Auto-switch to briefing mode if a hotspot or custom pin is clicked
     useEffect(() => {
@@ -203,10 +210,16 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas = [
                         <div className="mt-8 p-4 border border-dashed border-slate-200 dark:border-surface-border rounded-sm bg-white/50 dark:bg-surface/50">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Decision Support</p>
                             <div className="space-y-2">
-                                <button onClick={() => setMode('chat')} className="w-full py-2.5 bg-slate-100 dark:bg-surface hover:bg-white dark:hover:bg-surface-raised border border-slate-200 dark:border-surface-border rounded-sm text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-200 transition-all text-center shadow-sm">
+                                <button
+                                    onClick={() => handleDecisionSupport(`What are the safest and fastest evacuation routes for civilians in ${area || county?.name || 'this sector'}? Include road access, bridge capacity concerns, and any flooding obstacles.`)}
+                                    className="w-full py-2.5 bg-slate-100 dark:bg-surface hover:bg-white dark:hover:bg-surface-raised border border-slate-200 dark:border-surface-border rounded-sm text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-200 transition-all text-center shadow-sm"
+                                >
                                     Analyze Evacuation Strategy
                                 </button>
-                                <button onClick={() => setMode('chat')} className="w-full py-2.5 bg-slate-100 dark:bg-surface hover:bg-white dark:hover:bg-surface-raised border border-slate-200 dark:border-surface-border rounded-sm text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-200 transition-all text-center shadow-sm">
+                                <button
+                                    onClick={() => handleDecisionSupport(`For ${area || county?.name || 'this sector'}: What emergency logistics are needed right now? List shelter capacity requirements, food and water supplies, medical resources, and recommended deployment priorities.`)}
+                                    className="w-full py-2.5 bg-slate-100 dark:bg-surface hover:bg-white dark:hover:bg-surface-raised border border-slate-200 dark:border-surface-border rounded-sm text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-200 transition-all text-center shadow-sm"
+                                >
                                     Request Logistics Inventory
                                 </button>
                             </div>
@@ -219,6 +232,7 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas = [
                         <AIChatPanel
                             county={selectedHotspot?.county || (selectedCustomPin ? "Target Zone" : county?.name) || 'National'}
                             area={selectedHotspot ? `${selectedHotspot.area} (${selectedHotspot.title})` : (selectedCustomPin ? `Lat ${selectedCustomPin.lat.toFixed(2)}, Lng ${selectedCustomPin.lng.toFixed(2)}` : area) || 'General'}
+                            prefillMessage={prefillMessage}
                             onClose={onClose}
                         />
                     </div>

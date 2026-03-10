@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import client from '../../api/client';
 import Spinner from '../ui/Spinner';
 
-export default function AIChatPanel({ county, area, onClose }) {
+export default function AIChatPanel({ county, area, onClose, prefillMessage }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -15,6 +15,12 @@ export default function AIChatPanel({ county, area, onClose }) {
         fetchHistory();
     }, []);
 
+    // Auto-send prefill message if provided (from Decision Support buttons)
+    useEffect(() => {
+        if (prefillMessage) {
+            handleSend(prefillMessage);
+        }
+    }, [prefillMessage]);
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
