@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import useSubCountyRisk from "../hooks/useSubCountyRisk";
+import client from "../api/client";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -102,23 +103,12 @@ export default function CrisisLensAI() {
     setLoading(true);
 
     try {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_API_TOKEN}` },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "system", content: `You are CrisisLens, an elite flood crisis intelligence analyst for Western Kenya (focusing on ${targetArea}). You have deep expertise in flood forecasting, humanitarian logistics, and disaster response.
-Highly concise, tactical responses. Bullet points. No fluff. Area: ${targetArea}.`
-            },
-            ...newMsgs.filter(m => m.role !== "system").map(m => ({ role: m.role, content: m.msg }))
-          ]
-        }),
+      const res = await client.post("/api/ai/chat/", {
+        message: userMsg,
+        county: countyContext,
+        area: areaContext
       });
-      const data = await res.json();
-      const reply = data.choices?.[0]?.message?.content || "Processing...";
-      setMessages([...newMsgs, { role: "assistant", msg: reply }]);
+      setMessages([...newMsgs, { role: "assistant", msg: res.data.message }]);
     } catch {
       setMessages([...newMsgs, { role: "assistant", msg: "⚠️ Engine offline. Check connection." }]);
     }

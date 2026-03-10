@@ -194,7 +194,7 @@ export default function NationalOpsDashboard() {
 
                 {/* Trend chart */}
                 <Panel title="30-Day Probability Trend" className="lg:col-span-2">
-                    <div className="p-4 h-56">
+                    <div className="p-4 min-h-[224px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                                 <defs>
