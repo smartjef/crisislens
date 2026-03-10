@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import useSubCountyRisk from "../hooks/useSubCountyRisk";
+import Card from "../components/ui/Card";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
 
 const aiHistory = [
   { role: "system", msg: "CrisisLens Intelligence Engine online. Real-time flood analysis active for Kisumu Region." },
@@ -8,15 +11,13 @@ const aiHistory = [
 ];
 
 const aiSuggestions = [
-  "If rainfall continues 3 days, which villages face highest displacement?",
-  "How many boats needed if Nyando hits 85%?",
-  "Which hospitals will be affected in Ahero?",
-  "What lessons from 2018 floods apply now?",
-  "Generate an evacuation priority list for Kisumu zones",
-  "What's the estimated economic impact if Ahero floods?",
+  "Village displacement forecast?",
+  "Nyando 85% boat needs?",
+  "Ahero hospital impact?",
+  "2018 flood lessons?",
+  "Evacuation priority list?",
+  "Ahero economic impact?",
 ];
-
-const statusPulse = ["● LIVE", "○ LIVE"];
 
 export default function CrisisLensAI() {
   const [searchParams] = useSearchParams();
@@ -41,13 +42,12 @@ export default function CrisisLensAI() {
 
   const liveZones = useMemo(() => {
     if (!subCounties || subCounties.length === 0) {
-      // Fallback while loading
       return [
-        { name: "Ahero", risk: 91, color: "#7c3aed" },
-        { name: "Nyando", risk: 82, color: "#dc2626" },
-        { name: "Winam", risk: 73, color: "#ea580c" },
-        { name: "Kisumu Central", risk: 61, color: "#d97706" },
-        { name: "Muhoroni", risk: 47, color: "#ca8a04" },
+        { name: "Ahero", risk: 91, color: "#ef4444" },
+        { name: "Nyando", risk: 82, color: "#ef4444" },
+        { name: "Winam", risk: 73, color: "#f59e0b" },
+        { name: "Kisumu Central", risk: 61, color: "#f59e0b" },
+        { name: "Muhoroni", risk: 47, color: "#10b981" },
       ];
     }
 
@@ -59,18 +59,18 @@ export default function CrisisLensAI() {
       .sort((a, b) => b.risk - a.risk)
       .slice(0, 5)
       .map(z => {
-        let color = "#ca8a04";
-        if (z.risk >= 85) color = "#7c3aed";
-        else if (z.risk >= 70) color = "#dc2626";
-        else if (z.risk >= 50) color = "#ea580c";
-        else if (z.risk >= 30) color = "#d97706";
+        let color = "#10b981";
+        if (z.risk >= 85) color = "#ef4444";
+        else if (z.risk >= 70) color = "#ef4444";
+        else if (z.risk >= 50) color = "#f59e0b";
+        else if (z.risk >= 30) color = "#f59e0b";
         return { ...z, color };
       });
   }, [subCounties]);
 
   const maxRiskZone = liveZones[0] || { name: "N/A", risk: 0 };
   const alertPhase = maxRiskZone.risk >= 75 ? "ACTION REQUIRED" : maxRiskZone.risk >= 50 ? "ELEVATED PHASE" : "MONITORING";
-  const alertColor = maxRiskZone.risk >= 75 ? "#dc2626" : maxRiskZone.risk >= 50 ? "#ea580c" : "#16a34a";
+  const alertColor = maxRiskZone.risk >= 75 ? "text-red-600 dark:text-red-400" : maxRiskZone.risk >= 50 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400";
 
   useEffect(() => {
     const t = setInterval(() => setTick(p => p + 1), 1200);
@@ -110,183 +110,112 @@ export default function CrisisLensAI() {
           messages: [
             {
               role: "system", content: `You are CrisisLens, an elite flood crisis intelligence analyst for Western Kenya (focusing on ${targetArea}). You have deep expertise in flood forecasting, humanitarian logistics, and disaster response.
-
-Current operational data:
-- Ahero zone: risk 91%, readiness 38%, population 9,200 (highly vulnerable)
-- Nyando: risk 82%, readiness 54%, population 18,400
-- Kisumu Central: risk 61%, readiness 70%, population 42,000
-- Muhoroni: risk 47%, readiness 62%, population 15,600
-- Winam: risk 73%, readiness 45%, population 28,000
-
-Active alert phase: ACTION REQUIRED
-Forecast window: 7 days, high confidence
-Available resources: 18 boats (12 deployed), 2400 tents (1100 used), 340 volunteers (210 active)
-
-Be concise, tactical, and data-driven. Use bullet points and numbers. Start responses with a relevant emoji. Format clearly for field use. Target your advice towards the area of interest: ${targetArea}.`
+Highly concise, tactical responses. Bullet points. No fluff. Area: ${targetArea}.`
             },
             ...newMsgs.filter(m => m.role !== "system").map(m => ({ role: m.role, content: m.msg }))
           ]
         }),
       });
       const data = await res.json();
-      const reply = data.choices?.[0]?.message?.content || "Intelligence engine processing...";
+      const reply = data.choices?.[0]?.message?.content || "Processing...";
       setMessages([...newMsgs, { role: "assistant", msg: reply }]);
     } catch {
-      setMessages([...newMsgs, { role: "assistant", msg: "⚠️ Intelligence engine offline. Check network connection." }]);
+      setMessages([...newMsgs, { role: "assistant", msg: "⚠️ Engine offline. Check connection." }]);
     }
     setLoading(false);
   };
 
   return (
-    <div style={{
-      height: "100vh",
-      background: "#f5f7fa",
-      fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-      color: "#1a202c",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-    }}>
+    <div className="h-screen bg-slate-50 dark:bg-surface text-slate-900 dark:text-white font-sans flex flex-col overflow-hidden transition-colors duration-200">
 
-      {/* HEADER */}
-      <div style={{
-        background: "#ffffff",
-        borderBottom: "2px solid #dc2626",
-        padding: "0 28px",
-        height: 64,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexShrink: 0,
-        boxShadow: "0 1px 8px rgba(0,0,0,0.08)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ position: "relative" }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: "50%",
-              border: "2px solid #dc2626",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18, background: "#fff1f1",
-            }}>🌊</div>
-            <div style={{
-              position: "absolute", top: -1, right: -1,
-              width: 10, height: 10, borderRadius: "50%",
-              background: "#16a34a",
-              boxShadow: "0 0 6px #16a34a",
-              animation: "glow 1.5s infinite",
-            }} />
+      {/* HEADER - CONCISE */}
+      <header className="fixed top-0 left-0 right-0 h-[56px] bg-white dark:bg-surface border-b border-red-600 dark:border-red-700 px-5 flex items-center justify-between z-50 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-8 h-8 rounded-sm border border-red-600 dark:border-red-700 bg-red-50 dark:bg-red-900/10 flex items-center justify-center text-base">🌊</div>
+            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: 4, color: "#111827" }}>CRISISLENS</div>
-            <div style={{ fontSize: 9, color: "#9ca3af", letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>AI INTELLIGENCE ENGINE · KISUMU FLOOD OPS</div>
+            <h1 className="text-sm font-black tracking-[0.15em] text-slate-900 dark:text-white uppercase leading-none">CrisisLens AI</h1>
+            <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-[0.05em] mt-1">Intelligence Layer • Kisumu Ops</p>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 8, color: "#9ca3af", letterSpacing: 2 }}>ALERT PHASE</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: alertColor, letterSpacing: 2 }}>{alertPhase}</div>
+        <div className="flex items-center gap-6">
+          <div className="text-center hidden sm:block">
+            <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Alert Phase</p>
+            <p className={`text-[10px] font-black tracking-tight ${alertColor}`}>{alertPhase}</p>
           </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 8, color: "#9ca3af", letterSpacing: 2 }}>MAX RISK</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: maxRiskZone.color }}>{maxRiskZone.name.toUpperCase()} {maxRiskZone.risk}%</div>
+          <div className="text-center hidden sm:block">
+            <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1">Max Risk</p>
+            <p className="text-[10px] font-black tracking-tight uppercase" style={{ color: maxRiskZone.color }}>{maxRiskZone.name} {maxRiskZone.risk}%</p>
           </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 8, color: "#9ca3af", letterSpacing: 2 }}>STATUS</div>
-            <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>{statusPulse[tick % 2]}</div>
+          <div className="flex items-center px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/10 rounded-sm border border-emerald-100 dark:border-emerald-900/20">
+            <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">{tick % 2 === 0 ? "● LIVE" : "○ LIVE"}</span>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* BODY */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <div className="flex-1 flex pt-[56px] overflow-hidden">
 
-        {/* CHAT */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {/* CHAT AREA */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50 dark:bg-surface/50">
 
-          {/* Messages */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 16, background: "#f5f7fa" }}>
-            {messages.map((m, i) => (
-              <div key={i} style={{ display: "flex", flexDirection: m.role === "user" ? "row-reverse" : "row", gap: 12, alignItems: "flex-start" }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                  background: m.role === "user" ? "#dbeafe" : m.role === "system" ? "#f3f4f6" : "#dcfce7",
-                  border: `1px solid ${m.role === "user" ? "#93c5fd" : m.role === "system" ? "#e5e7eb" : "#86efac"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
-                }}>
-                  {m.role === "user" ? "👤" : "🌊"}
+          {/* MESSAGES - COMPACT */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+            <div className="max-w-3xl mx-auto w-full space-y-4">
+              {messages.map((m, i) => (
+                <div key={i} className={`flex gap-3 ${m.role === "user" ? "flex-row-reverse" : "flex-row"} items-start`}>
+                  <div className={`w-7 h-7 rounded-sm flex items-center justify-center text-sm flex-shrink-0 ${m.role === "user" ? "bg-slate-200 dark:bg-surface-border text-slate-600" : "bg-red-50 dark:bg-red-950/20 text-red-600 border border-red-100 dark:border-red-900/30"}`}>
+                    {m.role === "user" ? "👤" : "🌊"}
+                  </div>
+                  <div className={`flex-1 max-w-[85%] ${m.role === "user" ? "text-right" : "text-left"}`}>
+                    <div className={`text-[8px] font-black uppercase tracking-widest mb-1.5 ${m.role === "user" ? "text-slate-400" : "text-flood-500"}`}>
+                      {m.role === "user" ? "Operator" : m.role === "system" ? "Protocol" : "Intelligence"}
+                    </div>
+                    <div className={`p-3 rounded-sm text-xs leading-snug transition-colors border ${m.role === "user" ? "bg-white dark:bg-surface-raised border-slate-200 dark:border-surface-border text-slate-800 dark:text-slate-200" : m.role === "system" ? "bg-slate-100/50 dark:bg-surface italic text-slate-500 border-transparent" : "bg-white dark:bg-surface border-slate-200 dark:border-surface-border text-slate-800 dark:text-slate-200"}`}>
+                      {m.msg}
+                    </div>
+                  </div>
                 </div>
-                <div style={{
-                  maxWidth: "72%",
-                  padding: "12px 16px",
-                  borderRadius: m.role === "user" ? "12px 4px 12px 12px" : "4px 12px 12px 12px",
-                  fontSize: 13,
-                  lineHeight: 1.7,
-                  background: m.role === "user" ? "#eff6ff" : m.role === "system" ? "#f9fafb" : "#f0fdf4",
-                  border: `1px solid ${m.role === "user" ? "#bfdbfe" : m.role === "system" ? "#e5e7eb" : "#bbf7d0"}`,
-                  color: m.role === "system" ? "#9ca3af" : "#1f2937",
-                  whiteSpace: "pre-wrap",
-                  fontStyle: m.role === "system" ? "italic" : "normal",
-                  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-                }}>
-                  {m.role !== "user" && m.role !== "system" && (
-                    <div style={{ fontSize: 9, color: "#16a34a", letterSpacing: 2, marginBottom: 6, fontWeight: 700 }}>CRISISLENS INTELLIGENCE</div>
-                  )}
-                  {m.role === "user" && (
-                    <div style={{ fontSize: 9, color: "#2563eb", letterSpacing: 2, marginBottom: 6, fontWeight: 700, textAlign: "right" }}>OPERATOR QUERY</div>
-                  )}
-                  {m.msg}
-                </div>
-              </div>
-            ))}
+              ))}
 
-            {/* Suggestions */}
-            {showSuggestions && (
-              <div style={{ padding: "8px 0 0 44px" }}>
-                <div style={{ fontSize: 9, color: "#9ca3af", letterSpacing: 2, marginBottom: 10 }}>SUGGESTED INTELLIGENCE QUERIES</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {aiSuggestions.map((s, i) => (
-                    <button key={i} onClick={() => sendMessage(s)}
-                      style={{
-                        padding: "7px 14px", background: "#ffffff", border: "1px solid #e5e7eb",
-                        borderRadius: 20, fontSize: 11, color: "#6b7280", cursor: "pointer",
-                        fontFamily: "'Inter', sans-serif", transition: "all 0.15s", textAlign: "left",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = "#16a34a"; e.currentTarget.style.color = "#15803d"; e.currentTarget.style.background = "#f0fdf4"; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = "#e5e7eb"; e.currentTarget.style.color = "#6b7280"; e.currentTarget.style.background = "#ffffff"; }}>
-                      {s}
-                    </button>
-                  ))}
+              {/* SUGGESTIONS - CONCISE */}
+              {showSuggestions && (
+                <div className="pt-2 pl-10">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-3">Tactical Presets</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {aiSuggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => sendMessage(s)}
+                        className="px-3 py-1.5 bg-white dark:bg-surface-raised border border-slate-200 dark:border-surface-border rounded-sm text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:border-flood-500 dark:hover:border-flood-600 hover:text-flood-600 transition-all text-left"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {loading && (
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#dcfce7", border: "1px solid #86efac", display: "flex", alignItems: "center", justifyContent: "center" }}>🌊</div>
-                <div style={{ padding: "12px 16px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "4px 12px 12px 12px", fontSize: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                  <div style={{ fontSize: 9, color: "#16a34a", letterSpacing: 2, marginBottom: 6, fontWeight: 700 }}>CRISISLENS INTELLIGENCE</div>
-                  <span style={{ color: "#15803d" }}>Analyzing operational data</span>
-                  <span style={{ animation: "blink 1s infinite", color: "#16a34a" }}> ▋</span>
+              {loading && (
+                <div className="flex gap-3 items-center animate-pulse">
+                  <div className="w-7 h-7 rounded-sm bg-red-50 dark:bg-red-950/20 text-red-600 border border-red-100 dark:border-red-900/30 flex items-center justify-center">🌊</div>
+                  <div className="flex-1">
+                    <div className="text-[8px] font-black text-flood-500 uppercase tracking-widest mb-1.5">Processing Telemetry...</div>
+                    <div className="h-8 bg-white dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm w-full" />
+                  </div>
                 </div>
-              </div>
-            )}
-
+              )}
+            </div>
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
-          <div style={{
-            padding: "16px 28px 20px",
-            borderTop: "1px solid #e5e7eb",
-            background: "#ffffff",
-            flexShrink: 0,
-            boxShadow: "0 -1px 8px rgba(0,0,0,0.05)",
-          }}>
-            <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
-              <div style={{ flex: 1 }}>
+          {/* INPUT BAR - HIGHLY COMPACT */}
+          <footer className="p-4 bg-white dark:bg-surface border-t border-slate-200 dark:border-surface-border transition-colors">
+            <div className="max-w-3xl mx-auto flex gap-3 items-center">
+              <div className="flex-1">
                 <textarea
                   value={input}
                   onChange={e => setInput(e.target.value)}
@@ -296,101 +225,64 @@ Be concise, tactical, and data-driven. Use bullet points and numbers. Start resp
                       sendMessage();
                     }
                   }}
-                  placeholder="Ask the intelligence engine... (Enter to send, Shift+Enter for new line)"
-                  rows={3}
-                  style={{
-                    width: "100%", background: "#f9fafb", border: "1px solid #d1d5db",
-                    borderRadius: 8, padding: "14px 16px", color: "#1f2937",
-                    fontSize: 14, fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif", outline: "none",
-                    resize: "none", lineHeight: 1.6, transition: "border-color 0.2s",
-                  }}
-                  onFocus={e => e.target.style.borderColor = "#16a34a"}
-                  onBlur={e => e.target.style.borderColor = "#d1d5db"}
+                  placeholder="Query intelligence..."
+                  rows={1}
+                  className="w-full bg-slate-50 dark:bg-surface-border/10 border border-slate-200 dark:border-surface-border rounded-sm px-3 py-2.5 text-xs text-slate-900 dark:text-white outline-none focus:border-flood-500 transition-colors resize-none custom-scrollbar h-[38px] leading-tight"
                 />
               </div>
-              <button
+              <Button
                 onClick={() => sendMessage()}
                 disabled={loading || !input.trim()}
-                style={{
-                  padding: "12px 22px", height: 56,
-                  background: loading || !input.trim() ? "#f3f4f6" : "#16a34a",
-                  border: "none", borderRadius: 8,
-                  color: loading || !input.trim() ? "#9ca3af" : "#ffffff",
-                  fontSize: 12, fontFamily: "'Inter', sans-serif", fontWeight: 700,
-                  letterSpacing: 1, cursor: loading || !input.trim() ? "not-allowed" : "pointer",
-                  transition: "all 0.2s", whiteSpace: "nowrap",
-                }}>
-                {loading ? "..." : "SEND ↑"}
-              </button>
+                className="h-[38px] px-6 font-black uppercase tracking-widest text-[10px]"
+              >
+                {loading ? "..." : "SEND"}
+              </Button>
             </div>
-            <div style={{ marginTop: 8, fontSize: 9, color: "#d1d5db", letterSpacing: 1 }}>
-              CRISISLENS v2.1 · KISUMU FLOOD INTELLIGENCE SYSTEM · ALL DATA IS OPERATIONAL
-            </div>
-          </div>
+            <p className="max-w-3xl mx-auto mt-3 text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">
+              CrisisLens Intelligence Unit • v3.5 Highly Compact
+            </p>
+          </footer>
         </div>
 
-        {/* SIDEBAR */}
-        <div style={{
-          width: 260,
-          borderLeft: "1px solid #e5e7eb",
-          background: "#ffffff",
-          display: "flex", flexDirection: "column",
-          flexShrink: 0, overflowY: "auto",
-          boxShadow: "-1px 0 6px rgba(0,0,0,0.04)",
-        }}>
+        {/* SIDEBAR - COMPACT */}
+        <aside className="hidden lg:flex w-[260px] flex-col border-l border-slate-200 dark:border-surface-border bg-white dark:bg-surface transition-colors overflow-y-auto custom-scrollbar">
 
-          {/* Live Zone Risk */}
-          <div style={{ padding: 18, borderBottom: "1px solid #f3f4f6" }}>
-            <div style={{ fontSize: 9, color: "#9ca3af", letterSpacing: 2, marginBottom: 14 }}>LIVE ZONE RISK</div>
-            {liveZones.map((z, i) => (
-              <div key={i} style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, color: "#6b7280" }}>{z.name}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: z.color }}>{z.risk}%</span>
+          <div className="p-4 border-b border-slate-100 dark:border-surface-border">
+            <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Area Risk Telemetry</h3>
+            <div className="space-y-4">
+              {liveZones.map((z, i) => (
+                <div key={i}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] font-black text-slate-900 dark:text-slate-300 uppercase truncate pr-2">{z.name}</span>
+                    <span className="text-[10px] font-black tabular-nums" style={{ color: z.color }}>{z.risk}%</span>
+                  </div>
+                  <div className="h-1 bg-slate-100 dark:bg-surface-border/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-1000"
+                      style={{ width: `${z.risk}%`, backgroundColor: z.color }}
+                    />
+                  </div>
                 </div>
-                <div style={{ height: 4, background: "#f3f4f6", borderRadius: 2, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${z.risk}%`, background: z.color, borderRadius: 2 }} />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          {/* Quick Queries */}
-          <div style={{ padding: 18 }}>
-            <div style={{ fontSize: 9, color: "#9ca3af", letterSpacing: 2, marginBottom: 12 }}>QUICK QUERIES</div>
-            {aiSuggestions.map((s, i) => (
-              <div key={i} onClick={() => sendMessage(s)}
-                style={{
-                  padding: "9px 11px", marginBottom: 7, background: "#f9fafb",
-                  border: "1px solid #e5e7eb", borderRadius: 6,
-                  fontSize: 10, color: "#6b7280", cursor: "pointer", lineHeight: 1.5,
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "#86efac"; e.currentTarget.style.color = "#15803d"; e.currentTarget.style.background = "#f0fdf4"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "#e5e7eb"; e.currentTarget.style.color = "#6b7280"; e.currentTarget.style.background = "#f9fafb"; }}>
-                "{s}"
-              </div>
-            ))}
+          <div className="p-4">
+            <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Tactical Presets</h3>
+            <div className="space-y-1">
+              {aiSuggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendMessage(s)}
+                  className="w-full px-3 py-2 bg-slate-50/50 dark:bg-surface-border/5 border border-slate-100 dark:border-surface-border rounded-sm text-[9px] font-bold text-slate-500 dark:text-slate-400 text-left hover:border-flood-500/30 hover:text-flood-600 transition-all leading-relaxed"
+                >
+                  "{s}"
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        </aside>
       </div>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        @keyframes glow {
-          0%, 100% { opacity: 1; box-shadow: 0 0 6px #16a34a; }
-          50% { opacity: 0.5; box-shadow: 0 0 2px #16a34a; }
-        }
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #f9fafb; }
-        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 2px; }
-        textarea::placeholder { color: #9ca3af; }
-      `}</style>
     </div>
   );
 }

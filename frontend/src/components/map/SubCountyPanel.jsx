@@ -1,8 +1,11 @@
 import { useRef, useEffect, useState } from "react";
-import { Clock, Droplets, TriangleAlert, Waves, X, ExternalLink, Bot, MousePointer2 } from "lucide-react";
+import { Clock, Droplets, TriangleAlert, Waves, X, ExternalLink, Bot } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import Skeleton from "../ui/Skeleton";
+import Button from "../ui/Button";
+import Badge from "../ui/Badge";
+import Card from "../ui/Card";
 
 export default function SubCountyPanel({ county, areaRiskEntry, topAreas, onClose }) {
     const navigate = useNavigate();
@@ -40,126 +43,126 @@ export default function SubCountyPanel({ county, areaRiskEntry, topAreas, onClos
         <div
             ref={panelRef}
             tabIndex={-1}
-            className="w-full md:w-96 bg-white border-l border-slate-200 flex flex-col h-full outline-none"
+            className="w-full md:w-80 bg-white dark:bg-surface-raised border-l border-slate-200 dark:border-surface-border flex flex-col h-full outline-none transition-colors duration-200"
             role="dialog"
             aria-labelledby="panel-title"
         >
             {/* Mobile Drag Handle */}
-            <div className="md:hidden flex justify-center pt-3 pb-1 bg-slate-50">
-                <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            <div className="md:hidden flex justify-center pt-2 pb-1 bg-slate-50 dark:bg-surface">
+                <div className="w-8 h-1 bg-slate-200 dark:bg-surface-border rounded-full" />
             </div>
 
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50 relative">
-                <div>
-                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-3">Tactical Detail &middot; {county?.name}</p>
-                    <h2 id="panel-title" className="text-3xl font-black text-slate-800 leading-none tracking-tighter pr-8">
+            <div className="px-4 py-3 border-b border-slate-100 dark:border-surface-border flex justify-between items-start bg-slate-50/50 dark:bg-surface relative">
+                <div className="flex-1 min-w-0">
+                    <p className="text-[9px] font-black text-flood-600 dark:text-flood-400 uppercase tracking-[0.2em] mb-1">Tactical Detail &middot; {county?.name}</p>
+                    <h2 id="panel-title" className="text-xl font-black text-slate-900 dark:text-white leading-tight tracking-tight truncate pr-6 uppercase">
                         {areaRiskEntry?.name}
                     </h2>
 
                     {areaRiskEntry && (
-                        <div className="flex flex-wrap gap-2 mt-4">
-                            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-800 text-sm font-semibold rounded-md shadow-sm">
-                                <Waves className="w-4 h-4" /> {areaRiskEntry.risk_category || "Normal"}
-                            </span>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                            <Badge variant="outline" className="text-[9px] py-0 px-1.5 h-5 flex items-center gap-1 border-flood-200 dark:border-flood-900/30 text-flood-600 dark:text-flood-400">
+                                <Waves className="w-2.5 h-2.5" /> {areaRiskEntry.risk_category || "Normal"}
+                            </Badge>
                             {areaRiskEntry.lead_time_days && (
-                                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-800 text-sm font-semibold rounded-md shadow-sm">
-                                    <Clock className="w-4 h-4" /> {areaRiskEntry.lead_time_days}-day alert
-                                </span>
+                                <Badge variant="outline" className="text-[9px] py-0 px-1.5 h-5 flex items-center gap-1 border-amber-200 dark:border-amber-900/30 text-amber-600 dark:text-amber-400">
+                                    <Clock className="w-2.5 h-2.5" /> {areaRiskEntry.lead_time_days}d Lead
+                                </Badge>
                             )}
                         </div>
                     )}
                 </div>
                 <button
                     onClick={onClose}
-                    className="absolute top-6 right-5 bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all p-1.5 rounded-full shadow-sm"
+                    className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
                 >
                     <X className="w-5 h-5" />
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 bg-white">
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-white dark:bg-surface-raised custom-scrollbar">
                 {loading ? (
-                    <div className="space-y-6">
-                        <Skeleton className="h-28 w-full rounded-xl" />
-                        <Skeleton className="h-40 w-full rounded-xl" />
-                        <Skeleton className="h-20 w-full rounded-xl" />
+                    <div className="space-y-4">
+                        <Skeleton className="h-20 w-full rounded-sm" />
+                        <Skeleton className="h-10 w-full rounded-sm" />
+                        <Skeleton className="h-32 w-full rounded-sm" />
                     </div>
                 ) : details ? (
                     <>
-                        {/* Risk Metric Hero */}
-                        <div className="flex items-center gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                            <div className="shrink-0 flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 text-white font-bold text-xl shadow-md">
+                        {/* Risk Metric Compact Card */}
+                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-surface p-3 rounded-sm border border-slate-100 dark:border-surface-border">
+                            <div className="shrink-0 flex items-center justify-center w-12 h-12 rounded-sm bg-flood-600 dark:bg-flood-700 text-white font-black text-sm">
                                 {details.flood_probability || 0}%
                             </div>
-                            <div>
-                                <h3 className="text-slate-800 font-semibold mb-1">Calculated Probability</h3>
-                                <p className="text-sm text-slate-500 leading-relaxed">Based on combined current situational indicators and predictive models.</p>
+                            <div className="min-w-0">
+                                <h3 className="text-slate-900 dark:text-white text-[11px] font-black uppercase tracking-wider">Risk Probability</h3>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">Calculated situational risk index.</p>
                             </div>
                         </div>
 
-                        {/* Ask AI Context Button */}
-                        <button
+                        {/* Ask AI Context Button - Compact */}
+                        <Button
                             onClick={handleAskAI}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-md transition-all font-semibold"
+                            className="w-full flex items-center justify-center gap-2 h-10 text-[10px] font-black uppercase tracking-widest bg-flood-600 hover:bg-flood-700"
                         >
-                            <Bot className="w-5 h-5" />
-                            Ask AI About This Area
-                            <ExternalLink className="w-4 h-4 ml-1 opacity-70" />
-                        </button>
+                            <Bot className="w-4 h-4" />
+                            Query Intelligence
+                            <ExternalLink className="w-3 h-3 opacity-60" />
+                        </Button>
 
-                        {/* Detailed Indicators */}
+                        {/* Detailed Indicators - Compact Grid */}
                         {details.latest_observation && (
-                            <div>
-                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                    <Droplets className="w-5 h-5 text-blue-500" />
-                                    Latest Indicators
+                            <div className="border-t border-slate-100 dark:border-surface-border pt-4">
+                                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 mb-3 flex items-center gap-2 uppercase tracking-widest">
+                                    <Droplets className="w-3 h-3 text-flood-500" />
+                                    Environmental Telemetry
                                 </h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Rainfall</p>
-                                        <p className="font-semibold text-slate-700 mt-1">{details.latest_observation.rainfall_accumulation} mm</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-slate-50 dark:bg-surface p-2 rounded-sm border border-slate-100 dark:border-surface-border">
+                                        <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-tighter">Rainfall</p>
+                                        <p className="text-xs font-black text-slate-800 dark:text-slate-200 mt-0.5">{details.latest_observation.rainfall_accumulation} mm</p>
                                     </div>
-                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Soil Moisture</p>
-                                        <p className="font-semibold text-slate-700 mt-1">{(details.latest_observation.soil_moisture * 100).toFixed(0)}%</p>
+                                    <div className="bg-slate-50 dark:bg-surface p-2 rounded-sm border border-slate-100 dark:border-surface-border">
+                                        <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-tighter">Soil Moisture</p>
+                                        <p className="text-xs font-black text-slate-800 dark:text-slate-200 mt-0.5">{(details.latest_observation.soil_moisture * 100).toFixed(0)}%</p>
                                     </div>
-                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Elevation</p>
-                                        <p className="font-semibold text-slate-700 mt-1">{details.latest_observation.elevation} m</p>
+                                    <div className="bg-slate-50 dark:bg-surface p-2 rounded-sm border border-slate-100 dark:border-surface-border">
+                                        <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-tighter">Elevation</p>
+                                        <p className="text-xs font-black text-slate-800 dark:text-slate-200 mt-0.5">{details.latest_observation.elevation} m</p>
                                     </div>
-                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Past Occurrence</p>
-                                        <p className="font-semibold text-slate-700 mt-1">{details.latest_observation.past_flood_occurrence ? "Yes" : "No"}</p>
+                                    <div className="bg-slate-50 dark:bg-surface p-2 rounded-sm border border-slate-100 dark:border-surface-border">
+                                        <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-tighter">Past Events</p>
+                                        <p className="text-xs font-black text-slate-800 dark:text-slate-200 mt-0.5">{details.latest_observation.past_flood_occurrence ? "Confirmed" : "None Recorded"}</p>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Top Hotspots List */}
-                        <div>
-                            <h3 className="font-bold text-slate-800 mb-4">Other Hotspots in {county?.name}</h3>
-                            <ul className="space-y-3">
+                        {/* Top Hotspots List - Highly Compact */}
+                        <div className="border-t border-slate-100 dark:border-surface-border pt-4">
+                            <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 mb-3 uppercase tracking-widest">Regional Anomalies</h3>
+                            <div className="space-y-1">
                                 {topAreas.filter(a => a.id !== areaRiskEntry?.id).map((area) => (
-                                    <li key={area.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                                        <div className="flex items-center gap-3">
+                                    <div key={area.id} className="flex items-center justify-between p-2 rounded-sm hover:bg-slate-50 dark:hover:bg-surface transition-colors">
+                                        <div className="flex items-center gap-2 min-w-0">
                                             {area.flood_probability >= 75 ? (
-                                                <TriangleAlert className="w-5 h-5 text-red-500 shrink-0" />
+                                                <TriangleAlert className="w-3 h-3 text-red-500 shrink-0" />
                                             ) : (
-                                                <Droplets className="w-5 h-5 text-blue-500 shrink-0" />
+                                                <Droplets className="w-3 h-3 text-flood-500 shrink-0" />
                                             )}
-                                            <span className="font-semibold text-slate-700">{area.name}</span>
+                                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate tracking-tight">{area.name}</span>
                                         </div>
-                                        <span className="text-sm font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                                        <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 tabular-nums">
                                             {area.flood_probability}%
                                         </span>
-                                    </li>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
                         </div>
                     </>
                 ) : (
-                    <div className="flex items-center justify-center p-8 text-slate-500 italic text-center">
-                        Select an area on the map to view detailed risk intelligence.
+                    <div className="flex items-center justify-center p-6 text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest text-center">
+                        Select tactical sector for intelligence.
                     </div>
                 )}
             </div>

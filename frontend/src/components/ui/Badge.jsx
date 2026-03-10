@@ -1,7 +1,7 @@
 import React from 'react';
 
 export default function Badge({ variant = 'info', pulse = false, className = '', children }) {
-    const baseClasses = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium';
+    const baseClasses = 'inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider';
 
     const variantClasses = {
         critical: 'bg-red-600 text-white',

@@ -3,6 +3,7 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import client from '../../api/client';
 import { useAuthStore } from '../../store/useAuthStore';
 import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
 import { ShieldAlert, Bell, PlusCircle, ArrowRight, Droplets, MapPin, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AlertCreateModal from '../../components/alerts/AlertCreateModal';
@@ -11,38 +12,38 @@ import useAlerts from '../../hooks/useAlerts';
 
 function Panel({ title, badge, children, className = '' }) {
     return (
-        <div className={`bg-surface-raised border border-surface-border rounded ${className}`}>
+        <Card className={`overflow-hidden ${className}`}>
             {title && (
-                <div className="flex items-center justify-between px-5 py-3 border-b border-surface-border">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{title}</span>
+                <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-surface-border bg-slate-50/50 dark:bg-surface/50">
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{title}</span>
                     {badge}
                 </div>
             )}
             {children}
-        </div>
+        </Card>
     );
 }
 
 function RiskBar({ value }) {
-    const color = value >= 75 ? '#ef4444' : value >= 50 ? '#f59e0b' : '#0891b2';
+    const color = value >= 75 ? 'bg-red-500' : value >= 50 ? 'bg-amber-500' : 'bg-flood-500';
     return (
-        <div className="flex items-center gap-3">
-            <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden">
-                <div className="h-full transition-all duration-700 rounded-full" style={{ width: `${value}%`, backgroundColor: color }} />
+        <div className="flex items-center gap-2">
+            <div className="flex-1 h-1 bg-slate-100 dark:bg-surface border border-slate-200/50 dark:border-surface-border rounded-full overflow-hidden">
+                <div className={`h-full ${color} transition-all duration-700 ease-out`} style={{ width: `${value}%` }} />
             </div>
-            <span className="text-[10px] font-mono text-slate-500 tabular-nums w-8">{value}%</span>
+            <span className="text-[9px] font-black text-slate-400 tabular-nums w-7">{value}%</span>
         </div>
     );
 }
 
 function RiskTier({ category }) {
     const map = {
-        High:     'text-red-400 bg-red-900/20 border-red-800/30',
-        Moderate: 'text-amber-400 bg-amber-900/20 border-amber-800/30',
-        Low:      'text-emerald-400 bg-emerald-900/20 border-emerald-800/30',
+        High: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/10 border-red-100 dark:border-red-900/20',
+        Moderate: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/10 border-amber-100 dark:border-amber-900/20',
+        Low: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-900/20',
     };
     return (
-        <span className={`text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${map[category] || map.Low}`}>
+        <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${map[category] || map.Low}`}>
             {category}
         </span>
     );
@@ -51,29 +52,29 @@ function RiskTier({ category }) {
 function ActionCard({ sub }) {
     const prob = sub.flood_probability;
     if (prob >= 75) return (
-        <div className="flex items-start gap-3 px-5 py-3 border-b border-surface-border">
-            <ShieldAlert size={14} className="text-red-400 shrink-0 mt-0.5" />
-            <div>
-                <p className="text-xs font-medium text-slate-300">Issue evacuation advisory — {sub.name}</p>
-                <p className="text-[10px] text-slate-600 mt-0.5 font-mono uppercase tracking-wide">Priority: Critical</p>
+        <div className="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-surface-border bg-red-50/30 dark:bg-red-950/5">
+            <ShieldAlert size={14} className="text-red-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+                <p className="text-[11px] font-black text-slate-900 dark:text-slate-100 leading-tight">EVAC ADVISORY: {sub.name}</p>
+                <p className="text-[8px] text-red-500 font-black mt-1 uppercase tracking-widest leading-none">Status: Critical Action Required</p>
             </div>
         </div>
     );
     if (prob >= 50) return (
-        <div className="flex items-start gap-3 px-5 py-3 border-b border-surface-border">
-            <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
-            <div>
-                <p className="text-xs font-medium text-slate-300">Pre-position relief teams — {sub.name}</p>
-                <p className="text-[10px] text-slate-600 mt-0.5 font-mono uppercase tracking-wide">Priority: High</p>
+        <div className="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-surface-border bg-amber-50/30 dark:bg-amber-950/5">
+            <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+                <p className="text-[11px] font-black text-slate-900 dark:text-slate-100 leading-tight">PRE-POSITION RELIEF: {sub.name}</p>
+                <p className="text-[8px] text-amber-500 font-black mt-1 uppercase tracking-widest leading-none">Status: Elevated Readiness</p>
             </div>
         </div>
     );
     return (
-        <div className="flex items-start gap-3 px-5 py-3 border-b border-surface-border">
-            <Droplets size={14} className="text-flood-400 shrink-0 mt-0.5" />
-            <div>
-                <p className="text-xs font-medium text-slate-300">Monitor river/lake levels — {sub.name}</p>
-                <p className="text-[10px] text-slate-600 mt-0.5 font-mono uppercase tracking-wide">Priority: Routine</p>
+        <div className="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-surface-border bg-slate-50/50 dark:bg-surface/5">
+            <Droplets size={14} className="text-flood-600 dark:text-flood-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+                <p className="text-[11px] font-black text-slate-900 dark:text-slate-100 leading-tight">MONITOR LEVELS: {sub.name}</p>
+                <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black mt-1 uppercase tracking-widest leading-none">Status: Routine Surveillance</p>
             </div>
         </div>
     );
@@ -109,68 +110,67 @@ export default function CountyDashboard() {
     const alerts = alertsData?.results || [];
 
     if (loading && !county) return (
-        <div className="flex items-center justify-center min-h-[400px] gap-3">
-            <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">Loading county intelligence...</span>
+        <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
+            <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] animate-pulse">Syncing County Intelligence...</span>
         </div>
     );
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-in fade-in duration-500">
 
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4 pb-4 border-b border-surface-border">
+            {/* Header - Highly Compact */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-surface-border">
                 <div>
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-slate-600 mb-1">
-                        <MapPin size={10} className="inline mr-1" />
-                        County Emergency Operations
+                    <p className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 mb-1 flex items-center gap-1.5">
+                        <MapPin size={10} strokeWidth={3} className="text-emerald-500" /> County Emergency Operations
                     </p>
-                    <h1 className="text-xl font-semibold text-slate-200">{county?.name} County</h1>
-                    <div className="flex items-center gap-3 mt-2">
+                    <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter capitalize">{county?.name} Jurisdiction</h1>
+                    <div className="flex items-center gap-3 mt-1.5">
                         <RiskTier category={county?.risk_category} />
-                        <span className="text-[10px] font-mono text-slate-600">
-                            {county?.lead_time_days}-day early warning lead time
+                        <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest italic">
+                            {county?.lead_time_days}-day lead telemetry active
                         </span>
                     </div>
                 </div>
                 {(user?.role === 'county_officer' || user?.role === 'national_ops') && (
                     <Button
                         onClick={() => setModalOpen(true)}
-                        className="shrink-0 bg-emerald-700 hover:bg-emerald-600 text-white text-xs px-4 py-2 rounded flex items-center gap-1.5 font-medium"
+                        className="shrink-0 h-9 px-4 font-black uppercase tracking-widest text-[9px] flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600"
                     >
-                        <PlusCircle size={13} /> Issue Alert
+                        <PlusCircle size={14} strokeWidth={3} /> Issue Alert
                     </Button>
                 )}
-            </div>
+            </header>
 
             <AlertCreateModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSuccess={fetchCountyDetail} />
 
-            {/* Sub-county matrix + advisories */}
+            {/* Sub-county matrix + advisories - Compact Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <Panel title="Sub-County Vulnerability Matrix" className="lg:col-span-2">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                            <thead className="border-b border-surface-border">
+                <Panel title="Jurisdiction Vulnerability Matrix" className="lg:col-span-2">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-[10px]">
+                            <thead className="border-b border-slate-100 dark:border-surface-border bg-slate-50/50 dark:bg-surface/30 text-slate-400">
                                 <tr>
-                                    <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-600">Sub-County</th>
-                                    <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-600">Flood Risk</th>
-                                    <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-600">Tier</th>
-                                    <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-600">Lead</th>
+                                    <th className="px-4 py-2 text-left text-[9px] font-black uppercase tracking-widest">Sector Name</th>
+                                    <th className="px-4 py-2 text-left text-[9px] font-black uppercase tracking-widest">Risk Signal</th>
+                                    <th className="px-4 py-2 text-left text-[9px] font-black uppercase tracking-widest">Tier</th>
+                                    <th className="px-4 py-2 text-left text-[9px] font-black uppercase tracking-widest">Target</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-surface-border">
+                            <tbody className="divide-y divide-slate-100 dark:divide-surface-border">
                                 {sorted.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="px-5 py-8 text-center text-xs text-slate-600 italic">
-                                            No jurisdictional data available
+                                        <td colSpan={4} className="px-4 py-8 text-center bg-slate-50/20 dark:bg-surface/5">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">No sector data synchronized</p>
                                         </td>
                                     </tr>
                                 ) : sorted.map(sub => (
-                                    <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors">
-                                        <td className="px-5 py-3 font-medium text-slate-300">{sub.name}</td>
-                                        <td className="px-5 py-3"><RiskBar value={sub.flood_probability} /></td>
-                                        <td className="px-5 py-3"><RiskTier category={sub.risk_category} /></td>
-                                        <td className="px-5 py-3 font-mono text-slate-500">{sub.lead_time_days}d</td>
+                                    <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-surface/30 transition-colors">
+                                        <td className="px-4 py-2 font-black text-slate-800 dark:text-slate-200 capitalize tracking-tight">{sub.name}</td>
+                                        <td className="px-4 py-2"><RiskBar value={sub.flood_probability} /></td>
+                                        <td className="px-4 py-2"><RiskTier category={sub.risk_category} /></td>
+                                        <td className="px-4 py-2 font-black text-slate-400 tabular-nums italic tracking-tighter uppercase">{sub.lead_time_days}D Lead</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -178,10 +178,12 @@ export default function CountyDashboard() {
                     </div>
                 </Panel>
 
-                <Panel title="Protocol Advisories">
-                    <div className="max-h-80 overflow-y-auto">
+                <Panel title="Sector Protocol Advisories">
+                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-surface-border">
                         {sorted.length === 0 ? (
-                            <p className="px-5 py-8 text-center text-xs text-slate-600 italic">Awaiting sector analysis</p>
+                            <div className="px-5 py-8 text-center">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic leading-relaxed">System Scan: Awaiting Input</p>
+                            </div>
                         ) : sorted.map(sub => (
                             <ActionCard key={sub.id} sub={sub} />
                         ))}
@@ -189,36 +191,41 @@ export default function CountyDashboard() {
                 </Panel>
             </div>
 
-            {/* Active broadcasts */}
+            {/* Active broadcasts - Compact */}
             <Panel
-                title="Active County Broadcasts"
+                title="Active Jurisdiction Broadcasts"
                 badge={
-                    <span className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[10px] font-mono text-emerald-400">LIVE</span>
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Live Signals</span>
+                    </div>
                 }
             >
-                <div className="divide-y divide-surface-border">
+                <div className="divide-y divide-slate-100 dark:divide-surface-border">
                     {alerts.length === 0 ? (
-                        <p className="px-5 py-8 text-center text-xs text-slate-600 italic">
-                            No alerts currently broadcast for this jurisdiction
-                        </p>
+                        <div className="px-5 py-10 text-center bg-slate-50/20 dark:bg-surface/5">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic leading-relaxed">NOC Scan Complete: Sector All-Clear</p>
+                        </div>
                     ) : alerts.map(alert => (
-                        <div key={alert.id} className="flex items-center gap-4 px-5 py-3 hover:bg-white/[0.02] transition-colors">
-                            <Bell size={14} className={alert.severity === 'critical' ? 'text-red-400' : 'text-amber-400'} />
+                        <div key={alert.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-surface/50 transition-all group">
+                            <div className={`p-1.5 rounded-sm border ${alert.severity === 'critical' ? 'bg-red-50 dark:bg-red-950/20 text-red-600 border-red-100 dark:border-red-900/10' : 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100 dark:border-amber-900/10'}`}>
+                                <Bell size={12} strokeWidth={3} />
+                            </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-slate-300 truncate">{alert.title}</p>
-                                <p className="text-[10px] font-mono text-slate-600 uppercase tracking-wide mt-0.5">
-                                    {alert.sub_county_name || 'All Sectors'} · {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 truncate group-hover:text-flood-600 transition-colors uppercase leading-none">{alert.title}</p>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-1.5 flex items-center gap-2">
+                                    <span>{alert.sub_county_name || 'All Sectors'}</span>
+                                    <span className="opacity-20">•</span>
+                                    <span>{new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 </p>
                             </div>
-                            <span className={`text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${
-                                alert.severity === 'critical' ? 'text-red-400 bg-red-900/20 border-red-800/30' : 'text-amber-400 bg-amber-900/20 border-amber-800/30'
-                            }`}>{alert.severity}</span>
-                            <Link to={`/alerts/${alert.id}`} className="text-slate-700 hover:text-flood-400 transition-colors">
-                                <ArrowRight size={13} />
-                            </Link>
+                            <div className="flex items-center gap-3">
+                                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm border shrink-0 ${alert.severity === 'critical' ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/10' : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/10'
+                                    }`}>{alert.severity}</span>
+                                <Link to={`/alerts/${alert.id}`} className="text-slate-300 hover:text-flood-500 transition-all">
+                                    <ArrowRight size={12} strokeWidth={3} />
+                                </Link>
+                            </div>
                         </div>
                     ))}
                 </div>

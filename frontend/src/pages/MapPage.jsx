@@ -65,7 +65,6 @@ export default function MapPage() {
     // Map backend arrays into keyed lookups for the Leaflet component
     const riskByCounty = useMemo(() => {
         return counties.reduce((acc, county) => {
-            // The Leaflet map uses riskPercent/riskType, so map our backend fields to that
             acc[county.name] = {
                 ...county,
                 riskPercent: county.flood_probability,
@@ -75,41 +74,13 @@ export default function MapPage() {
         }, {});
     }, [counties]);
 
-    const areaRiskByKey = useMemo(() => {
-        // We need to map subCounties and figure out their parent county string to match GeoJSON properties.
-        return subCounties.reduce((acc, area) => {
-            // Find the parent county name using the county ID
-            const parentCounty = counties.find(c => c.id === area.county || c.url?.endsWith(`/${area.county}/`));
-            // Hack: For the Map GeoJSON mapping, we just assume the API subcounty name matches the GeoJSON name exactly.
-            // E.g 'Kisumu::Nyando'
-            // To correctly map, we should just let the API give us the names directly.
-            // But if we don't know the parent county string exactly, we can just index by the area name if unique.
-
-            // Since our API currently doesn't return parent County name in SubCountyListSerializer,
-            // we'll try to guess it or rely on the frontend filtering logic. 
-            // Actually, looking at the GeoJSON, the subcounty names are unique enough.
-            // Wait, let's look at the GeoJSON: adm1_name is county, adm2_name is subcounty.
-            // Let's create a map based on SubCounty API name.
-            acc[area.name] = {
-                ...area,
-                riskPercent: area.flood_probability,
-                riskType: "flood"
-            };
-            return acc;
-        }, {});
-    }, [subCounties, counties]);
-
-    // Adjust areaRiskByKey to map directly by 'adm2_name' since the GeoJSON adm2 names 
-    // are robust enough to match the seeded DB names.
     const robustAreaRiskByKey = useMemo(() => {
         const acc = {};
         kenyaAreas.features.forEach(f => {
             const areaName = f.properties.adm2_name;
             const countyName = f.properties.adm1_name;
-            // Find the backend record that matches exactly the GeoJSON adm2_name
             const backendArea = subCounties.find(s => s.name === areaName);
             if (backendArea) {
-                // Key it as County::Subcounty to be safe for LeafletMap
                 acc[`${countyName}::${areaName}`] = {
                     ...backendArea,
                     riskPercent: backendArea.flood_probability,
@@ -117,11 +88,8 @@ export default function MapPage() {
                 };
             }
         });
-
-        console.log("MAPPED GEOJSON Subcounties: ", Object.keys(acc));
-        console.log("AVAILABLE API Subcounties: ", subCounties.map(s => s.name));
         return acc;
-    }, [subCounties, kenyaAreas]);
+    }, [subCounties]);
 
     const selectedAreaObj = subCounties.find(s => s.name === selectedAreaName);
 
@@ -159,7 +127,7 @@ export default function MapPage() {
 
     if (countiesError) {
         return (
-            <div className="flex items-center justify-center p-8 h-full bg-slate-50">
+            <div className="flex items-center justify-center p-8 h-full bg-slate-50 dark:bg-surface">
                 <ErrorCard message="Failed to load county data." onRetry={refetchCounties} />
             </div>
         );
@@ -167,31 +135,31 @@ export default function MapPage() {
 
     if (countiesLoading) {
         return (
-            <div className="flex h-full gap-4 p-4 bg-slate-50">
-                <div className="flex-1 flex flex-col gap-4">
-                    <Skeleton className="h-16 w-full rounded-xl" />
-                    <Skeleton className="flex-1 w-full rounded-xl" />
-                    <Skeleton className="h-24 w-full rounded-xl" />
+            <div className="flex h-full gap-3 p-3 bg-white dark:bg-surface transition-colors duration-200">
+                <div className="flex-1 flex flex-col gap-3">
+                    <Skeleton className="h-14 w-full rounded-sm" />
+                    <Skeleton className="flex-1 w-full rounded-sm" />
+                    <Skeleton className="h-20 w-full rounded-sm" />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="flex h-full gap-4 p-4 bg-slate-50 relative overflow-hidden">
+        <div className="flex h-full gap-3 p-3 bg-white dark:bg-surface relative overflow-hidden transition-colors duration-200">
             {/* Left side: Map and selectors */}
-            <div className="flex-1 flex flex-col gap-4">
-                {/* Header/Legend bar */}
-                <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex-1 flex flex-col gap-3">
+                {/* Header/Legend bar - Highly Compact */}
+                <div className="flex justify-between items-center bg-white dark:bg-surface-raised p-3 rounded-sm border border-slate-200 dark:border-surface-border transition-colors">
                     <div>
-                        <h1 className="text-xl font-bold text-slate-800">Risk Map</h1>
-                        <p className="text-sm text-slate-500">Live probabilities driven by backend real data.</p>
+                        <h1 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Tactical Risk Map</h1>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Lake Victoria Basin Monitoring Engine</p>
                     </div>
                     <MapLegend />
                 </div>
 
                 {/* The map wrapper */}
-                <div className="flex-1 shadow-sm rounded-xl overflow-hidden bg-white border border-slate-200 p-2 relative z-0">
+                <div className="flex-1 rounded-sm overflow-hidden bg-white dark:bg-surface-raised border border-slate-200 dark:border-surface-border p-1 relative z-0 transition-colors">
                     <LeafletMap
                         focusCountiesGeoJSON={focusCountiesGeoJSON}
                         focusAreasGeoJSON={focusAreasGeoJSON}
@@ -205,10 +173,10 @@ export default function MapPage() {
                     />
                 </div>
 
-                {/* Bottom county selector pills */}
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                        Focus Counties
+                {/* Bottom county selector pills - Compact */}
+                <div className="bg-white dark:bg-surface-raised p-3 rounded-sm border border-slate-200 dark:border-surface-border transition-colors">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-2">
+                        Operational Jurisdictions
                     </h3>
                     <CountySelector
                         counties={counties}
@@ -216,18 +184,18 @@ export default function MapPage() {
                         onToggleCounty={handleCountyToggle}
                     />
 
-                    {/* Sub-county dropdown filter when exactly 1 county is selected */}
+                    {/* Sub-county dropdown filter - Compact */}
                     {selectedCounties.length === 1 && (
-                        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-3">
-                            <label className="text-sm font-semibold text-slate-600">Zoom to Area:</label>
+                        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-surface-border flex items-center gap-3">
+                            <label className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-tighter">Sector Zoom:</label>
                             <select
-                                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all cursor-pointer"
+                                className="px-2 py-1 bg-slate-50 dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm text-[10px] font-black text-slate-700 dark:text-slate-200 outline-none focus:border-flood-500 transition-all cursor-pointer uppercase"
                                 value={selectedAreaName}
                                 onChange={(e) => {
                                     setSelectedAreaName(e.target.value);
                                 }}
                             >
-                                <option value="">-- All Areas in {selectedCounties[0]} --</option>
+                                <option value="">-- All Sectors in {selectedCounties[0]} --</option>
                                 {subCounties
                                     .filter(s => kenyaAreas.features.some(f => f.properties.adm2_name === s.name && f.properties.adm1_name === selectedCounties[0]))
                                     .sort((a, b) => a.name.localeCompare(b.name))
@@ -240,7 +208,7 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Mobile Backdrop - only visible when panel is open on mobile */}
+            {/* Mobile Backdrop */}
             {isPanelOpen && (
                 <div
                     className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] md:hidden animate-in fade-in duration-300"
@@ -248,11 +216,11 @@ export default function MapPage() {
                 />
             )}
 
-            {/* Right side / Bottom: Detail Panel (slides in if open) */}
+            {/* Right side / Bottom: Detail Panel (slides in if open) - Compact width */}
             <div className={`
                 fixed bottom-0 left-0 right-0 h-[60vh] w-full transform transition-transform duration-300 ease-out z-[100]
                 ${isPanelOpen ? "translate-y-0" : "translate-y-full"}
-                md:relative md:top-0 md:h-full md:w-96 md:translate-y-0
+                md:relative md:top-0 md:h-full md:w-80 md:translate-y-0
                 md:transform-none
             `}>
                 <div className={`
@@ -261,15 +229,15 @@ export default function MapPage() {
                     ${isPanelOpen ? "md:translate-x-0" : "md:translate-x-full"}
                 `}>
                     {isPanelOpen && (
-                        <div className="w-full h-full rounded-t-[2.5rem] md:rounded-2xl overflow-hidden shadow-2xl border-t border-x md:border border-slate-200 bg-white">
+                        <div className="w-full h-full rounded-t-sm md:rounded-sm overflow-hidden border-t border-x md:border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised transition-colors">
                             {subCountiesError ? (
                                 <div className="h-full p-4">
                                     <ErrorCard message="Failed to load sub-county data." onRetry={refetchSubCounties} />
                                 </div>
                             ) : subCountiesLoading ? (
-                                <div className="w-full h-full flex flex-col gap-4 p-6">
-                                    <Skeleton className="h-24 w-full rounded-xl" />
-                                    <Skeleton className="flex-1 w-full rounded-xl" />
+                                <div className="w-full h-full flex flex-col gap-3 p-4">
+                                    <Skeleton className="h-20 w-full rounded-sm" />
+                                    <Skeleton className="flex-1 w-full rounded-sm" />
                                 </div>
                             ) : (
                                 <SubCountyPanel

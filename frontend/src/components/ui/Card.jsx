@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function Card({ className = '', children, ...props }) {
     return (
-        <div className={`bg-white dark:bg-surface-raised rounded border border-slate-200 dark:border-surface-border shadow-sm overflow-hidden ${className}`} {...props}>
+        <div className={`bg-white dark:bg-surface-raised rounded-sm border border-slate-200 dark:border-surface-border transition-colors duration-200 ${className}`} {...props}>
             {children}
         </div>
     );
