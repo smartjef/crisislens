@@ -103,23 +103,12 @@ export default function AIChatPanel({ county, area, onClose }) {
                                     {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                             </div>
-                            import ReactMarkdown from 'react-markdown';
-
-                            // ... in message loop
                             {m.is_ai ? (
-                                <div className="prose-tactical dark:prose-invert">
+                                <div className="prose-tactical dark:prose-invert text-[11px] font-bold leading-relaxed">
                                     <ReactMarkdown>{m.message}</ReactMarkdown>
                                 </div>
                             ) : (
-                                {
-                                    m.is_ai ? (
-                                        <div className="prose-tactical dark:prose-invert">
-                                            <ReactMarkdown>{m.message}</ReactMarkdown>
-                                        </div>
-                                    ) : (
-                                        <p className="text-[11px] font-bold leading-relaxed whitespace-pre-wrap">{m.message}</p>
-                                    )
-                                }
+                                <p className="text-[11px] font-bold leading-relaxed whitespace-pre-wrap">{m.message}</p>
                             )}
                         </div>
                     </div>
