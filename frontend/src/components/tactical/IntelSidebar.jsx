@@ -5,27 +5,54 @@ import AIChatPanel from '../ai/AIChatPanel';
 import Badge from '../ui/Badge';
 import client from '../../api/client';
 
-export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, onClose }) {
+export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, selectedHotspot, selectedCustomPin, onClose }) {
     const [mode, setMode] = useState('risk'); // 'risk', 'briefing', 'chat'
     const [briefing, setBriefing] = useState('');
     const [loadingBriefing, setLoadingBriefing] = useState(false);
 
-    useEffect(() => {
-        if (county || area) {
-            handleGetBriefing();
-        }
-    }, [county, area]);
+    // Recon Drone State
+    const [isDroneScanning, setIsDroneScanning] = useState(false);
+    const [droneImage, setDroneImage] = useState(null);
 
-    const handleGetBriefing = async () => {
+    // Reset drone state when pin changes
+    useEffect(() => {
+        setDroneImage(null);
+        setIsDroneScanning(false);
+    }, [selectedCustomPin]);
+
+    // Auto-switch to briefing mode if a hotspot or custom pin is clicked
+    useEffect(() => {
+        if (selectedHotspot) {
+            setMode('briefing');
+            handleGetBriefing(true, false);
+        } else if (selectedCustomPin) {
+            setMode('briefing');
+            handleGetBriefing(false, true);
+        } else if (county || area) {
+            handleGetBriefing(false, false);
+        }
+    }, [county, area, selectedHotspot, selectedCustomPin]);
+
+    const handleGetBriefing = async (isHotspot = false, isCustomPin = false) => {
         setLoadingBriefing(true);
         try {
-            const res = await client.post('/api/ai/chat/', {
-                message: `Provide a critical tactical briefing for ${area || county?.name}. Focus on immediate flood risks, population vulnerability, and evacuation status. Be extremely concise (max 3 sentences).`,
-                county: county?.name || 'National',
-                area: area || 'General'
-            });
+            let contextMessage = `Provide a critical tactical briefing for ${area || county?.name}. Focus on immediate flood risks, population vulnerability, and evacuation status. Be extremely concise (max 3 sentences).`;
+
+            if (isHotspot && selectedHotspot) {
+                contextMessage = `URGENT TACTICAL INCIDENT: Generate an immediate rapid-response briefing for a ${selectedHotspot.title} occurring at coords ${selectedHotspot.pos.join(", ")} in ${selectedHotspot.area}, ${selectedHotspot.county}. Focus strictly on operational impact and immediate dispatcher actions. Max 3 sentences.`;
+            } else if (isCustomPin && selectedCustomPin) {
+                contextMessage = `TARGET COORDINATES LOCKED: Generate a hyper-local tactical analysis for coordinate [${selectedCustomPin.lat.toFixed(4)}, ${selectedCustomPin.lng.toFixed(4)}]. Analyze likely terrain risks, proximity to water bodies, and accessibility for ground teams based on standard Kenyan geography. Max 3 sentences.`;
+            }
+
+            const payload = {
+                message: contextMessage,
+                // If it's a custom pin, we pass the generic active area/county, or "Custom Area" if none
+                county: selectedHotspot?.county || (selectedCustomPin ? (county?.name || "Target Zone") : county?.name) || 'National',
+                area: selectedHotspot?.area || (selectedCustomPin ? (area || "Unknown Sector") : area) || 'General'
+            };
+
+            const res = await client.post('/api/ai/chat/', payload);
             setBriefing(res.data.message);
-            setMode('briefing');
         } catch (e) {
             console.error("Briefing failed", e);
             setBriefing("Tactical intelligence currently restricted. Signal interference detected.");
@@ -33,6 +60,13 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, on
             setLoadingBriefing(false);
         }
     };
+
+    // Determine what title to show at the top of the risk panel
+    let displayTitle = area || county?.name || 'National Sector';
+    if (selectedHotspot) displayTitle = selectedHotspot.title;
+    if (selectedCustomPin) displayTitle = `COORD [${selectedCustomPin.lat.toFixed(2)}, ${selectedCustomPin.lng.toFixed(2)}]`;
+
+    const isCritical = !!selectedHotspot || !!selectedCustomPin || areaRiskEntry?.risk_category === 'High';
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-surface-raised transition-colors overflow-hidden">
@@ -73,40 +107,45 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, on
             <div className="flex-1 overflow-hidden relative">
                 {mode === 'risk' && (
                     <div className="h-full overflow-y-auto p-5 custom-scrollbar space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
-                        {/* Selected Area/County Header */}
+                        {/* Selected Area/County/Hotspot Header */}
                         <div>
                             <div className="flex items-center gap-2 mb-1">
-                                <Badge variant={areaRiskEntry?.risk_category === 'High' ? 'danger' : 'warning'} className="text-[8px] h-4 font-black">
-                                    {areaRiskEntry?.risk_category || 'Normal'}
+                                <Badge variant={isCritical ? 'danger' : 'warning'} className="text-[8px] h-4 font-black">
+                                    {selectedHotspot ? 'ACTIVE INCIDENT' : selectedCustomPin ? 'TARGET ACQUIRED' : (areaRiskEntry?.risk_category || 'Normal')}
                                 </Badge>
                                 <h2 className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                                    {area || county?.name || 'National Sector'}
+                                    {displayTitle}
                                 </h2>
                             </div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                Comprehensive Risk Analysis
+                                {selectedHotspot
+                                    ? `Loc: ${selectedHotspot.area}, ${selectedHotspot.county}`
+                                    : selectedCustomPin
+                                        ? 'Hyper-Local Reconnaissance'
+                                        : 'Comprehensive Risk Analysis'}
                             </p>
                         </div>
 
-                        {/* Risk Metric Card */}
-                        <div className="p-4 bg-slate-50 dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm shadow-sm transition-colors">
-                            <div className="flex justify-between items-end mb-3">
-                                <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Flood Probability</span>
-                                <span className="text-2xl font-black text-slate-900 dark:text-white leading-none">
-                                    {areaRiskEntry?.flood_probability || county?.flood_probability || 0}%
-                                </span>
+                        {/* Risk Metric Card - Hide if we are specifically looking at a hotspot incident or custom pin */}
+                        {!selectedHotspot && !selectedCustomPin && (
+                            <div className="p-4 bg-slate-50 dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm shadow-sm transition-colors">
+                                <div className="flex justify-between items-end mb-3">
+                                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Flood Probability</span>
+                                    <span className="text-2xl font-black text-slate-900 dark:text-white leading-none">
+                                        {areaRiskEntry?.flood_probability || county?.flood_probability || 0}%
+                                    </span>
+                                </div>
+                                <div className="h-1.5 w-full bg-slate-200 dark:bg-surface-border/30 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full transition-all duration-1000 ${(areaRiskEntry?.flood_probability || county?.flood_probability || 0) > 70 ? 'bg-danger-500' : 'bg-warning-500'}`}
+                                        style={{ width: `${areaRiskEntry?.flood_probability || county?.flood_probability || 0}%` }}
+                                    />
+                                </div>
                             </div>
-                            <div className="h-1.5 w-full bg-slate-200 dark:bg-surface-border/30 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full transition-all duration-1000 ${(areaRiskEntry?.flood_probability || county?.flood_probability || 0) > 70 ? 'bg-danger-500' : 'bg-warning-500'
-                                        }`}
-                                    style={{ width: `${areaRiskEntry?.flood_probability || county?.flood_probability || 0}%` }}
-                                />
-                            </div>
-                        </div>
+                        )}
 
-                        {/* Sectors List (if showing County) */}
-                        {!area && topAreas.length > 0 && (
+                        {/* Sectors List (if showing County and NOT a hotspot/pin) */}
+                        {!area && !selectedHotspot && !selectedCustomPin && topAreas.length > 0 && (
                             <div className="space-y-3">
                                 <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">High Risk Sectors</h3>
                                 <div className="space-y-1.5">
@@ -122,6 +161,20 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, on
                             </div>
                         )}
 
+                        {/* Drone Imagery Display */}
+                        {selectedCustomPin && droneImage && (
+                            <div className="mt-4 p-2 bg-slate-900 border border-slate-700 rounded-sm overflow-hidden relative group animate-in fade-in zoom-in-95 duration-500">
+                                <span className="absolute top-3 left-3 bg-black/60 text-green-400 text-[8px] font-black font-mono px-2 py-0.5 rounded-sm border border-green-500/30 z-10 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> LIVE FEED
+                                </span>
+                                <span className="absolute bottom-3 right-3 text-white/50 text-[6px] font-mono z-10">
+                                    ELEV: 400ft | SENSORS: OPTICAL,IR
+                                </span>
+                                <img src={droneImage} alt="Tactical Drone Recon" className="w-full h-32 object-cover rounded-sm border border-slate-800" />
+                                <div className="absolute inset-0 border border-green-500/20 pointer-events-none custom-scanline" />
+                            </div>
+                        )}
+
                         {/* Action Buttons */}
                         <div className="pt-4 border-t border-slate-100 dark:border-surface-border space-y-2">
                             <button
@@ -131,14 +184,45 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, on
                                 <AlertTriangle size={13} />
                                 Generate Tactical Brief
                             </button>
+
+                            {/* Show Drone Deploy Button ONLY for Custom Pins */}
+                            {selectedCustomPin && !droneImage && (
+                                <button
+                                    onClick={() => {
+                                        setIsDroneScanning(true);
+                                        // Simulate drone flight / image generation delay
+                                        setTimeout(() => {
+                                            setDroneImage("/images/synthetic_drone_flood.jpg");
+                                            setIsDroneScanning(false);
+                                        }, 2500);
+                                    }}
+                                    disabled={isDroneScanning}
+                                    className={`w-full py-2.5 px-4 text-white text-[10px] font-black uppercase tracking-widest rounded-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98]
+                                        ${isDroneScanning ? 'bg-slate-600 animate-pulse cursor-wait' : 'bg-slate-900 hover:bg-black'}
+                                    `}
+                                >
+                                    {isDroneScanning ? (
+                                        <>
+                                            <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            Establishing Uplink...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles size={13} />
+                                            Deploy Recon Drone
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
 
                 {mode === 'briefing' && (
-                    <div className="h-full overflow-y-auto p-5 custom-scrollbar bg-slate-50/50 dark:bg-surface/50 animate-in fade-in slide-in-from-right-2 duration-300">
+                    <div className={`h-full overflow-y-auto p-5 custom-scrollbar animate-in fade-in slide-in-from-right-2 duration-300 ${selectedHotspot ? 'bg-red-50/30 dark:bg-red-950/10' : 'bg-slate-50/50 dark:bg-surface/50'}`}>
                         <div className="flex items-center gap-2 mb-4">
-                            <Bot size={14} className="text-flood-600" />
+                            <Bot size={14} className={selectedHotspot ? 'text-red-500 animate-pulse' : 'text-flood-600'} />
+
                             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Active Intelligence Briefing</h3>
                         </div>
 
@@ -177,8 +261,8 @@ export default function IntelSidebar({ county, area, areaRiskEntry, topAreas, on
                 {mode === 'chat' && (
                     <div className="h-full animate-in fade-in duration-300">
                         <AIChatPanel
-                            county={county?.name || 'National'}
-                            area={area || 'General'}
+                            county={selectedHotspot?.county || (selectedCustomPin ? "Target Zone" : county?.name) || 'National'}
+                            area={selectedHotspot ? `${selectedHotspot.area} (${selectedHotspot.title})` : (selectedCustomPin ? `Lat ${selectedCustomPin.lat.toFixed(2)}, Lng ${selectedCustomPin.lng.toFixed(2)}` : area) || 'General'}
                             onClose={onClose}
                         />
                     </div>

@@ -36,6 +36,9 @@ const focusAreasGeoJSON = {
 export default function MapPage() {
     const [selectedCounties, setSelectedCounties] = useState(["Nairobi", "Kisumu", "Siaya", "Homa Bay"]);
     const [selectedAreaName, setSelectedAreaName] = useState("");
+    const [selectedHotspot, setSelectedHotspot] = useState(null); // Track active hotspot
+    const [selectedCustomPin, setSelectedCustomPin] = useState(null); // NEW: Track custom dropped pin
+    const [isSimulating, setIsSimulating] = useState(false); // Track simulation state
     const [mapInstance, setMapInstance] = useState(null);
 
     const { data: allCounties, loading: countiesLoading, error: countiesError, refetch: refetchCounties } = useCounties();
@@ -47,9 +50,11 @@ export default function MapPage() {
     }, [allCounties]);
 
     // Figure out which county should drive the right-side Panel.
-    // If an area is selected, its parent county drives it. Otherwise, if EXACTLY ONE county is selected, that county drives it.
+    // If a hotspot, area, or exactly one county is selected, that drives the panel.
     let panelCountyObj = null;
-    if (selectedAreaName) {
+    if (selectedHotspot) {
+        panelCountyObj = counties.find(c => c.name === selectedHotspot.county);
+    } else if (selectedAreaName) {
         const feature = focusAreasGeoJSON.features.find(f => f.properties.adm2_name === selectedAreaName);
         if (feature) {
             panelCountyObj = counties.find(c => c.name === feature.properties.adm1_name);
@@ -113,6 +118,8 @@ export default function MapPage() {
             return [...prev, name];
         });
         setSelectedAreaName("");
+        setSelectedHotspot(null);
+        setSelectedCustomPin(null);
     };
 
     const handleAreaClick = (countyName, areaName) => {
@@ -120,9 +127,35 @@ export default function MapPage() {
             setSelectedCounties(prev => [...prev, countyName]);
         }
         setSelectedAreaName(areaName);
+        setSelectedHotspot(null); // Clear hotspot if clicking a general area
+        setSelectedCustomPin(null);
     };
 
-    const isPanelOpen = !!panelCountyObj;
+    const handleHotspotClick = (hotspot) => {
+        if (!selectedCounties.includes(hotspot.county)) {
+            setSelectedCounties(prev => [...prev, hotspot.county]);
+        }
+        setSelectedAreaName(hotspot.area); // Implicitly select the area the hotspot is in
+        setSelectedHotspot(hotspot);
+        setSelectedCustomPin(null);
+
+        // Auto-zoom map to hotspot
+        if (mapInstance && hotspot.pos) {
+            mapInstance.setView(hotspot.pos, 13, { animate: true });
+        }
+    };
+
+    const handleCustomPinDrop = (latlng) => {
+        setSelectedCustomPin(latlng);
+        setSelectedHotspot(null); // Explicitly clear any active hotspots
+        // We don't automatically clear area/county here, as the pin might be inside them,
+        // so the user still has broader context.
+    };
+
+    // Animate map center if pin is dropped near edges (optional UX)
+    // Left as future enhancement if needed.
+
+    const isPanelOpen = !!panelCountyObj || !!selectedCustomPin;
 
     if (countiesError) {
         return (
@@ -186,6 +219,24 @@ export default function MapPage() {
                             </select>
                         </div>
                     )}
+
+                    {/* Simulation Controls */}
+                    <div className="p-3 bg-white dark:bg-surface-border/10 border border-slate-200 dark:border-surface-border rounded-sm relative overflow-hidden">
+                        {isSimulating && (
+                            <div className="absolute inset-0 bg-flood-500/10 dark:bg-flood-500/20 animate-pulse pointer-events-none" />
+                        )}
+                        <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 relative z-10">Predictive Modeling</h3>
+                        <button
+                            onClick={() => setIsSimulating(!isSimulating)}
+                            className={`w-full py-2.5 px-4 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all flex items-center justify-center gap-2 shadow-sm
+                                ${isSimulating
+                                    ? 'bg-red-50 text-red-600 border border-red-200 dark:bg-red-900/20 dark:border-red-800/50 dark:text-red-400 shadow-inner'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-surface dark:hover:bg-surface-raised dark:border-surface-border dark:text-slate-300'}`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${isSimulating ? 'bg-red-500 animate-pulse' : 'bg-slate-400'}`} />
+                            {isSimulating ? 'Halt Simulation' : 'Run 48hr Flood Path'}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="p-4 border-t border-slate-100 dark:border-surface-border bg-slate-50/50 dark:bg-surface-border/5">
@@ -203,9 +254,14 @@ export default function MapPage() {
                         areaRiskByKey={robustAreaRiskByKey}
                         onCountyClick={handleCountyToggle}
                         onAreaClick={handleAreaClick}
+                        onHotspotClick={handleHotspotClick}
+                        onCustomPinDrop={handleCustomPinDrop}
                         mapInstance={mapInstance}
                         setMapInstance={setMapInstance}
                         selectedCounties={selectedCounties}
+                        selectedArea={selectedAreaName}
+                        isSimulating={isSimulating}
+                        selectedCustomPin={selectedCustomPin}
                     />
                 </div>
             </main>
@@ -220,8 +276,14 @@ export default function MapPage() {
                         county={panelCountyObj}
                         area={selectedAreaName}
                         areaRiskEntry={selectedAreaObj}
+                        selectedHotspot={selectedHotspot}
+                        selectedCustomPin={selectedCustomPin} // Pass custom pin to sidebar
                         topAreas={topAreas}
-                        onClose={() => setSelectedAreaName("")}
+                        onClose={() => {
+                            setSelectedAreaName("");
+                            setSelectedHotspot(null);
+                            setSelectedCustomPin(null);
+                        }}
                     />
                 )}
             </aside>
