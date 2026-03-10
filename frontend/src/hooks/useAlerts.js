@@ -12,11 +12,16 @@ export default function useAlerts(filters = {}, options = {}) {
         filtersRef.current = filters;
     }, [filters]);
 
+    const filtersStr = JSON.stringify(filters);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const params = new URLSearchParams(filtersRef.current).toString();
+            const cleanFilters = Object.fromEntries(
+                Object.entries(filters).filter(([_, v]) => v !== undefined && v !== null && v !== "" && v !== "undefined")
+            );
+            const params = new URLSearchParams(cleanFilters).toString();
             const res = await client.get(`/api/alerts/?${params}`);
             setData(res.data);
         } catch (err) {
@@ -25,7 +30,7 @@ export default function useAlerts(filters = {}, options = {}) {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [filtersStr]); // Re-fetch only when filter values actually change
 
     useEffect(() => {
         fetchData();

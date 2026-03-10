@@ -30,16 +30,21 @@ export default function AuthProvider({ children }) {
         }
 
         refreshRequest(stored)
-            .then(({ data }) => {
-                // Persist the rotated refresh token before fetching the user.
+            .then(async ({ data }) => {
+                // 1. Persist the rotated refresh token
                 if (data.refresh) {
                     localStorage.setItem('cl-refresh', data.refresh);
                 }
-                // Return both the new access token and the /me/ call in parallel.
-                return Promise.all([data.access, getMeRequest()]);
-            })
-            .then(([access, meRes]) => {
-                login(access, meRes.data);
+                // 2. IMPORTANT: Update the store with the access token immediately.
+                // This ensures the next call (getMeRequest) can pick it up from the store
+                // in the Axios request interceptor.
+                useAuthStore.getState().setAccessToken(data.access);
+
+                // 3. Now fetch the user profile
+                const meRes = await getMeRequest();
+
+                // 4. Fully hydrate the store
+                login(data.access, meRes.data);
             })
             .catch(() => {
                 // Refresh token expired or blacklisted — clear it and start fresh.

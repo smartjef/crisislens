@@ -46,14 +46,14 @@ export default function ScenarioSimulator({ subCounty, onSimulated }) {
                 <div className="space-y-5">
                     <div>
                         <div className="flex justify-between mb-2">
-                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <Layers className="w-4 h-4 text-blue-500" /> Rainfall Accumulation
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                                <Layers className="w-3.5 h-3.5 text-flood-500" /> Rainfall Accumulation
                             </label>
-                            <span className="text-sm font-bold text-blue-600">{inputs.rainfall_accumulation} mm</span>
+                            <span className="text-[10px] font-black text-flood-600 uppercase tracking-widest">{inputs.rainfall_accumulation} MM</span>
                         </div>
                         <input
                             type="range" min="0" max="300" step="5"
-                            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            className="w-full h-1.5 bg-slate-200 dark:bg-surface-border/20 rounded-full appearance-none cursor-pointer accent-flood-600"
                             value={inputs.rainfall_accumulation}
                             onChange={(e) => setInputs({ ...inputs, rainfall_accumulation: parseFloat(e.target.value) })}
                         />
@@ -61,14 +61,14 @@ export default function ScenarioSimulator({ subCounty, onSimulated }) {
 
                     <div>
                         <div className="flex justify-between mb-2">
-                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <Droplets className="w-4 h-4 text-blue-500" /> Soil Moisture
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                                <Droplets className="w-3.5 h-3.5 text-flood-500" /> Soil Moisture
                             </label>
-                            <span className="text-sm font-bold text-blue-600">{(inputs.soil_moisture * 100).toFixed(0)}%</span>
+                            <span className="text-[10px] font-black text-flood-600 uppercase tracking-widest">{(inputs.soil_moisture * 100).toFixed(0)}%</span>
                         </div>
                         <input
                             type="range" min="0" max="1" step="0.01"
-                            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            className="w-full h-1.5 bg-slate-200 dark:bg-surface-border/20 rounded-full appearance-none cursor-pointer accent-flood-600"
                             value={inputs.soil_moisture}
                             onChange={(e) => setInputs({ ...inputs, soil_moisture: parseFloat(e.target.value) })}
                         />
@@ -76,111 +76,111 @@ export default function ScenarioSimulator({ subCounty, onSimulated }) {
 
                     <div>
                         <div className="flex justify-between mb-2">
-                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <Mountain className="w-4 h-4 text-blue-500" /> Elevation
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                                <Mountain className="w-3.5 h-3.5 text-flood-500" /> Elevation Parameters
                             </label>
-                            <span className="text-sm font-bold text-blue-600">{inputs.elevation} m</span>
+                            <span className="text-[10px] font-black text-flood-600 uppercase tracking-widest">{inputs.elevation} M</span>
                         </div>
                         <input
                             type="range" min="1100" max="1400" step="1"
-                            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            className="w-full h-1.5 bg-slate-200 dark:bg-surface-border/20 rounded-full appearance-none cursor-pointer accent-flood-600"
                             value={inputs.elevation}
                             onChange={(e) => setInputs({ ...inputs, elevation: parseFloat(e.target.value) })}
                         />
                     </div>
 
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:bg-slate-100 transition-colors">
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-surface-border/10 rounded-sm border border-slate-200 dark:border-surface-border cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
                         <input
                             type="checkbox" id="past_flood"
-                            className="w-5 h-5 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                            className="w-4 h-4 text-flood-600 bg-white dark:bg-surface border-slate-300 dark:border-surface-border rounded-sm focus:ring-flood-500 cursor-pointer"
                             checked={inputs.past_flood_occurrence}
                             onChange={(e) => setInputs({ ...inputs, past_flood_occurrence: e.target.checked })}
                         />
-                        <label htmlFor="past_flood" className="text-sm font-semibold text-slate-700 cursor-pointer">Past Flood Occurrence</label>
+                        <label htmlFor="past_flood" className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 cursor-pointer">Historical Data Override</label>
                     </div>
 
-                    <div className="flex gap-3 pt-2">
+                    <div className="flex gap-2 pt-2">
                         <Button
                             onClick={handleSimulate}
                             disabled={loading}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-md h-12 text-base font-bold"
+                            className="flex-1 bg-flood-600 hover:bg-flood-700 text-white h-11 text-[10px] font-black uppercase tracking-[0.15em]"
                         >
                             {loading ? (
                                 <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    Simulating...
+                                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    PROCESSING...
                                 </div>
                             ) : (
-                                <><Play className="w-5 h-5 mr-2 fill-current" /> Run Scenario</>
+                                <><Play className="w-4 h-4 mr-2 fill-current" /> EXECUTE SIMULATION</>
                             )}
                         </Button>
                         <Button
                             variant="outline"
                             onClick={handleReset}
-                            className="border-slate-300 text-slate-600 h-12 w-12 p-0 flex items-center justify-center hover:bg-slate-50"
-                            title="Reset to defaults"
+                            className="border-slate-200 dark:border-surface-border text-slate-400 h-11 w-11 p-0 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-white/5"
+                            title="Reset Parameters"
                         >
-                            <RotateCcw className="w-5 h-5" />
+                            <RotateCcw className="w-4 h-4" />
                         </Button>
                     </div>
                 </div>
 
                 {/* Results */}
                 <div className="flex flex-col">
-                    <div className={`flex-1 border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center text-center transition-all duration-500 h-full ${result ? 'border-blue-400 bg-blue-50/40' : 'border-slate-200 bg-slate-50/50'
+                    <div className={`flex-1 border border-dashed rounded-sm p-6 flex flex-col items-center justify-center text-center transition-all duration-300 h-full ${result ? 'border-flood-400 bg-flood-50/10' : 'border-slate-200 dark:border-surface-border bg-slate-50/20'
                         }`}>
                         {!result ? (
-                            <div className="text-slate-400 max-w-[200px]">
-                                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center mx-auto mb-6 opacity-40">
-                                    <Play className="w-8 h-8 text-blue-500 fill-blue-500" />
+                            <div className="text-slate-400 max-w-[200px] opacity-40">
+                                <div className="w-12 h-12 bg-white dark:bg-surface rounded-sm border border-slate-100 dark:border-surface-border flex items-center justify-center mx-auto mb-5">
+                                    <Play className="w-5 h-5 text-flood-500 fill-flood-500" />
                                 </div>
-                                <p className="text-sm font-semibold leading-relaxed">Adjust indicators on the left and click <br /><span className="text-blue-500 underline decoration-2 underline-offset-4">Run Scenario</span></p>
+                                <p className="text-[10px] font-black uppercase tracking-widest leading-relaxed">Adjust indicators & execute simulation</p>
                             </div>
                         ) : (
-                            <div className="w-full space-y-8 animate-in zoom-in-95 duration-500">
-                                <div className="space-y-2">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-500/60 drop-shadow-sm">Simulated Forecast</p>
-                                    <div className="text-7xl font-black text-slate-900 tracking-tighter tabular-nums drop-shadow-sm">
-                                        {result.flood_probability}<span className="text-blue-500 text-4xl">%</span>
+                            <div className="w-full space-y-6 animate-in zoom-in-95 duration-300">
+                                <div className="space-y-1">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-flood-500/60">Simulated Probability</p>
+                                    <div className="text-6xl font-black text-slate-900 dark:text-white tracking-tighter tabular-nums drop-shadow-sm">
+                                        {result.flood_probability}<span className="text-flood-500 text-3xl">%</span>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-4 bg-white rounded-2xl border border-blue-100 shadow-sm text-left">
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Risk Level</p>
-                                        <p className={`text-sm font-black uppercase ${result.risk_category === 'High' ? 'text-red-600' :
-                                            result.risk_category === 'Moderate' ? 'text-amber-600' : 'text-emerald-600'
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 bg-white dark:bg-surface-raised rounded-sm border border-slate-100 dark:border-surface-border text-left">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Vector Risk</p>
+                                        <p className={`text-[10px] font-black uppercase tracking-tight ${result.risk_category === 'High' ? 'text-danger-600' :
+                                            result.risk_category === 'Moderate' ? 'text-warning-600' : 'text-success-600'
                                             }`}>
-                                            {result.risk_category}
+                                            {result.risk_category} Phase
                                         </p>
                                     </div>
-                                    <div className="p-4 bg-white rounded-2xl border border-blue-100 shadow-sm text-left">
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Confidence</p>
-                                        <p className="text-sm font-black text-slate-800 uppercase">
-                                            {(result.confidence * 100).toFixed(0)}%
+                                    <div className="p-3 bg-white dark:bg-surface-raised rounded-sm border border-slate-100 dark:border-surface-border text-left">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Confidence</p>
+                                        <p className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">
+                                            {(result.confidence * 100).toFixed(0)}% Accuracy
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className={`flex flex-col gap-2 p-5 rounded-2xl shadow-lg border-2 transition-all ${diff > 0 ? 'bg-red-50 border-red-200' : diff < 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                                <div className={`flex flex-col gap-1.5 p-4 rounded-sm border transition-all ${diff > 0 ? 'bg-danger-500/5 border-danger-500/20' : diff < 0 ? 'bg-success-500/5 border-success-500/20' : 'bg-slate-500/5 border-slate-500/20'
                                     }`}>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Baseline Context</span>
-                                        <span className="text-[10px] font-black uppercase text-slate-600">{currentProb}% Probability</span>
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Baseline Context</span>
+                                        <span className="text-[8px] font-black uppercase text-slate-500">{currentProb}% Prob</span>
                                     </div>
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-2">
-                                            {diff > 0 ? <TrendingUp className="w-5 h-5 text-red-600" /> : <TrendingDown className="w-5 h-5 text-emerald-600" />}
-                                            <span className={`text-lg font-black tracking-tight ${diff > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                                                Δ Change: {diff > 0 ? '+' : ''}{diff.toFixed(1)}%
+                                            {diff > 0 ? <TrendingUp className="w-4 h-4 text-danger-600" /> : <TrendingDown className="w-4 h-4 text-success-600" />}
+                                            <span className={`text-sm font-black tracking-tight ${diff > 0 ? 'text-danger-700 dark:text-danger-400' : 'text-success-700 dark:text-success-400'}`}>
+                                                Δ {diff > 0 ? '+' : ''}{diff.toFixed(1)}%
                                             </span>
                                         </div>
-                                        <span className={`text-xs font-black uppercase px-3 py-1 rounded-lg ${diff > 0 ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
-                                            {diff > 0 ? '↑ Risk Inc' : '↓ Risk Dec'}
+                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-sm ${diff > 0 ? 'bg-danger-600 text-white' : 'bg-success-600 text-white'}`}>
+                                            {diff > 0 ? 'Escalation' : 'Reduction'}
                                         </span>
                                     </div>
-                                    <p className="text-[11px] font-bold text-slate-500 mt-1">
-                                        {diff > 0 ? 'Predicted escalation. Advise active surveillance.' : 'Model indicates vulnerability reduction.'}
+                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mt-1">
+                                        {diff > 0 ? 'Predicted vulnerability increase. Advise countermeasures.' : 'Model indicates vulnerability reduction.'}
                                     </p>
                                 </div>
                             </div>

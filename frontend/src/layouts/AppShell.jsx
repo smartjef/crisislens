@@ -13,21 +13,21 @@ function ToastContainer() {
     if (toasts.length === 0) return null;
 
     return (
-        <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2">
+        <div className="fixed top-20 right-4 z-[9999] flex flex-col gap-2">
             {toasts.map(t => (
                 <div
                     key={t.id}
-                    className={`flex items-center gap-3 min-w-[300px] p-4 rounded-xl shadow-lg border animate-in slide-in-from-bottom-5 fade-in duration-300
-                        ${t.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
-                            t.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
-                                'bg-blue-50 border-blue-200 text-blue-800'}`}
+                    className={`flex items-center gap-3 min-w-[280px] p-3 rounded-sm border animate-in slide-in-from-right-5 fade-in duration-300
+                        ${t.type === 'error' ? 'bg-danger-600 text-white border-danger-700' :
+                            t.type === 'success' ? 'bg-success-600 text-white border-success-700' :
+                                'bg-flood-600 text-white border-flood-700'}`}
                 >
-                    {t.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-500" /> :
-                        t.type === 'success' ? <CheckCircle className="w-5 h-5 text-green-500" /> :
-                            <Info className="w-5 h-5 text-blue-500" />}
-                    <span className="flex-1 font-medium text-sm">{t.message}</span>
-                    <button onClick={() => removeToast(t.id)} className="p-1 hover:bg-black/5 rounded-full transition-colors">
-                        <X className="w-4 h-4" />
+                    {t.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
+                        t.type === 'success' ? <CheckCircle className="w-4 h-4" /> :
+                            <Info className="w-4 h-4" />}
+                    <span className="flex-1 text-[10px] font-black uppercase tracking-wider">{t.message}</span>
+                    <button onClick={() => removeToast(t.id)} className="p-1 hover:bg-white/10 rounded-sm transition-colors">
+                        <X className="w-3.5 h-3.5" />
                     </button>
                 </div>
             ))}
@@ -86,10 +86,8 @@ export default function AppShell() {
                         isMobile={isMobile}
                     />
 
-                    <main className="flex-1 overflow-y-auto p-4 md:p-5">
-                        <div className="mx-auto max-w-7xl">
-                            <Outlet />
-                        </div>
+                    <main className="flex-1 overflow-hidden">
+                        <Outlet />
                     </main>
                 </div>
                 <ToastContainer />

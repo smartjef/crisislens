@@ -34,6 +34,26 @@ FLOOD_INDICATORS: dict[tuple[str, str], dict] = {
     ("Homa Bay", "Kasipul"):         dict(rainfall_accumulation=121, soil_moisture=0.69, elevation=1151, past_flood_occurrence=False),
     ("Homa Bay", "Rangwe"):          dict(rainfall_accumulation=115, soil_moisture=0.66, elevation=1155, past_flood_occurrence=False),
     ("Homa Bay", "Ndhiwa"):          dict(rainfall_accumulation=109, soil_moisture=0.62, elevation=1163, past_flood_occurrence=False),
+    # Nairobi — 7 sub-counties (Hardest Hit)
+    ("Nairobi", "Mathare"):          dict(rainfall_accumulation=185, soil_moisture=0.92, elevation=1610, past_flood_occurrence=True),
+    ("Nairobi", "Kibra"):            dict(rainfall_accumulation=178, soil_moisture=0.88, elevation=1670, past_flood_occurrence=True),
+    ("Nairobi", "Mukuru"):           dict(rainfall_accumulation=182, soil_moisture=0.90, elevation=1620, past_flood_occurrence=True),
+    ("Nairobi", "Pipeline"):         dict(rainfall_accumulation=170, soil_moisture=0.85, elevation=1625, past_flood_occurrence=True),
+    ("Nairobi", "Githurai"):         dict(rainfall_accumulation=145, soil_moisture=0.78, elevation=1580, past_flood_occurrence=True),
+    ("Nairobi", "Roysambu"):         dict(rainfall_accumulation=138, soil_moisture=0.72, elevation=1590, past_flood_occurrence=False),
+    ("Nairobi", "Westlands"):        dict(rainfall_accumulation=130, soil_moisture=0.68, elevation=1720, past_flood_occurrence=False),
+    # Kiambu — Focus areas
+    ("Kiambu", "Juja"):              dict(rainfall_accumulation=155, soil_moisture=0.84, elevation=1520, past_flood_occurrence=True),
+    ("Kiambu", "Ruiru"):             dict(rainfall_accumulation=150, soil_moisture=0.82, elevation=1510, past_flood_occurrence=True),
+    ("Kiambu", "Thika Town"):        dict(rainfall_accumulation=140, soil_moisture=0.78, elevation=1530, past_flood_occurrence=True),
+    ("Kiambu", "Gatundu North"):     dict(rainfall_accumulation=165, soil_moisture=0.88, elevation=1750, past_flood_occurrence=True),
+    ("Kiambu", "Limuru"):            dict(rainfall_accumulation=120, soil_moisture=0.70, elevation=2200, past_flood_occurrence=False),
+    # Machakos — Flash flood zones
+    ("Machakos", "Masinga"):         dict(rainfall_accumulation=135, soil_moisture=0.75, elevation=1050, past_flood_occurrence=True),
+    ("Machakos", "Matungulu"):       dict(rainfall_accumulation=128, soil_moisture=0.72, elevation=1450, past_flood_occurrence=True),
+    ("Machakos", "Machakos Town"):   dict(rainfall_accumulation=120, soil_moisture=0.68, elevation=1600, past_flood_occurrence=False),
+    # Kajiado — North
+    ("Kajiado", "Kajiado North"):    dict(rainfall_accumulation=142, soil_moisture=0.79, elevation=1750, past_flood_occurrence=True),
 }
 
 PHASE_SCORES = {

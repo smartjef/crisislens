@@ -4,6 +4,17 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      borderRadius: {
+        DEFAULT: '2px',
+        sm: '1px',
+        md: '2px',
+        lg: '4px',
+        xl: '8px',
+      },
+      boxShadow: {
+        none: 'none',
+        card: '0 1px 2px rgba(0, 0, 0, 0.1)',
+      },
       colors: {
         flood: {
           50:  '#ecfeff',

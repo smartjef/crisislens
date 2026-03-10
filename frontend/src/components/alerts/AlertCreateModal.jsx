@@ -77,38 +77,38 @@ export default function AlertCreateModal({ isOpen, onClose, onSuccess }) {
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Issue Crisis Alert" className="max-w-2xl">
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Modal isOpen={isOpen} onClose={onClose} title="Issue Crisis Alert" className="max-w-xl">
+            <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {/* County Selection */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Target County</label>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Target County</label>
                         <select
                             name="county"
                             value={formData.county}
                             onChange={handleChange}
                             disabled={user?.role === 'county_officer' || isSubmitting}
-                            className={`w-full p-3 bg-slate-50 dark:bg-slate-900 border ${errors.county ? 'border-red-500' : 'border-slate-200 dark:border-slate-700'} rounded-xl text-sm focus:ring-2 focus:ring-flood-500 outline-none disabled:opacity-60 transition-all`}
+                            className={`w-full p-2.5 bg-slate-50 dark:bg-surface-border/10 border ${errors.county ? 'border-danger-500' : 'border-slate-200 dark:border-surface-border'} rounded-sm text-xs focus:border-flood-500 outline-none disabled:opacity-60 transition-all uppercase font-bold`}
                         >
                             <option value="">Select County</option>
                             {counties?.map(c => (
                                 <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
                         </select>
-                        {errors.county && <p className="text-xs text-red-500 mt-1">{errors.county}</p>}
+                        {errors.county && <p className="text-[10px] font-bold text-danger-500 mt-1 uppercase tracking-tight">{errors.county}</p>}
                     </div>
 
                     {/* Sub-County Selection (Optional) */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Sub-County (Optional)</label>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Sub-County (Optional)</label>
                         <select
                             name="sub_county"
                             value={formData.sub_county}
                             onChange={handleChange}
                             disabled={!formData.county || loadingSubs || isSubmitting}
-                            className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-flood-500 outline-none disabled:opacity-60 transition-all"
+                            className="w-full p-2.5 bg-slate-50 dark:bg-surface-border/10 border border-slate-200 dark:border-surface-border rounded-sm text-xs focus:border-flood-500 outline-none disabled:opacity-60 transition-all uppercase font-bold"
                         >
-                            <option value="">Specific Sub-County (All if empty)</option>
+                            <option value="">All Regions</option>
                             {subCounties?.map(sc => (
                                 <option key={sc.id} value={sc.id}>{sc.name}</option>
                             ))}
@@ -117,19 +117,19 @@ export default function AlertCreateModal({ isOpen, onClose, onSuccess }) {
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Severity Level</label>
-                    <div className="grid grid-cols-4 gap-3">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Severity Level Identification</label>
+                    <div className="grid grid-cols-4 gap-2">
                         {['low', 'medium', 'high', 'critical'].map((sev) => (
                             <button
                                 key={sev}
                                 type="button"
                                 onClick={() => setFormData(prev => ({ ...prev, severity: sev }))}
-                                className={`py-2 px-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border-2 ${formData.severity === sev
-                                        ? (sev === 'critical' ? 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-200 dark:shadow-none' :
-                                            sev === 'high' ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-100 dark:shadow-none' :
-                                                sev === 'medium' ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-none' :
-                                                    'bg-green-600 border-green-600 text-white shadow-lg shadow-green-100 dark:shadow-none')
-                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-300'
+                                className={`py-2 px-1 rounded-sm text-[9px] font-black uppercase tracking-[0.15em] transition-all border ${formData.severity === sev
+                                    ? (sev === 'critical' ? 'bg-danger-600 border-danger-600 text-white' :
+                                        sev === 'high' ? 'bg-warning-500 border-warning-500 text-white' :
+                                            sev === 'medium' ? 'bg-flood-600 border-flood-600 text-white' :
+                                                'bg-success-600 border-success-600 text-white')
+                                    : 'bg-white dark:bg-surface-raised border-slate-200 dark:border-surface-border text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
                                     }`}
                             >
                                 {sev}
@@ -138,47 +138,47 @@ export default function AlertCreateModal({ isOpen, onClose, onSuccess }) {
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Alert Headline</label>
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Tactical Alert Headline</label>
                     <input
                         type="text"
                         name="title"
                         value={formData.title}
                         onChange={handleChange}
-                        placeholder="e.g. Flash Flood Risk in Ahero"
-                        className={`w-full p-3 bg-slate-50 dark:bg-slate-900 border ${errors.title ? 'border-red-500' : 'border-slate-200 dark:border-slate-700'} rounded-xl text-sm focus:ring-2 focus:ring-flood-500 outline-none transition-all`}
+                        placeholder="ENTER ALERT TITLE..."
+                        className={`w-full p-2.5 bg-slate-50 dark:bg-surface-border/10 border ${errors.title ? 'border-danger-500' : 'border-slate-200 dark:border-surface-border'} rounded-sm text-xs focus:border-flood-500 outline-none transition-all uppercase font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600`}
                     />
-                    {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title}</p>}
+                    {errors.title && <p className="text-[10px] font-bold text-danger-500 mt-1 uppercase tracking-tight">{errors.title}</p>}
                 </div>
 
-                <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Description & Instructions</label>
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Description & Operational Instructions</label>
                     <textarea
                         name="description"
                         rows="4"
                         value={formData.description}
                         onChange={handleChange}
-                        placeholder="Provide detailed situational awareness and recommended response steps..."
-                        className={`w-full p-3 bg-slate-50 dark:bg-slate-900 border ${errors.description ? 'border-red-500' : 'border-slate-200 dark:border-slate-700'} rounded-xl text-sm focus:ring-2 focus:ring-flood-500 outline-none transition-all resize-none`}
+                        placeholder="PROVIDE DETAILED SITUATIONAL AWARENESS..."
+                        className={`w-full p-2.5 bg-slate-50 dark:bg-surface-border/10 border ${errors.description ? 'border-danger-500' : 'border-slate-200 dark:border-surface-border'} rounded-sm text-xs focus:border-flood-500 outline-none transition-all resize-none uppercase font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600 leading-relaxed`}
                     ></textarea>
-                    {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description}</p>}
+                    {errors.description && <p className="text-[10px] font-bold text-danger-500 mt-1 uppercase tracking-tight">{errors.description}</p>}
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+                <div className="flex gap-3 pt-5 border-t border-slate-100 dark:border-surface-border">
                     <Button
                         type="button"
                         variant="ghost"
                         onClick={onClose}
-                        className="flex-1 dark:text-slate-400 dark:hover:bg-slate-800"
+                        className="flex-1 text-[10px] font-black uppercase tracking-widest py-3 border border-slate-200 dark:border-surface-border"
                     >
-                        Cancel
+                        Abort
                     </Button>
                     <Button
                         type="submit"
                         loading={isSubmitting}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-100 dark:shadow-none"
+                        className="flex-1 bg-danger-600 hover:bg-danger-700 text-white text-[10px] font-black uppercase tracking-widest py-3"
                     >
-                        Broadcast Alert
+                        Execute Broadcast
                     </Button>
                 </div>
             </form>
