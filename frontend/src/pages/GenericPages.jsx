@@ -47,14 +47,21 @@ function StatusChip({ status }) {
 /* ═══════════════════════════════════════════════════════════════════ */
 export function AlertsPage() {
     usePageTitle('Crisis Alerts');
-    const [filters, setFilters] = useState({ county: '', severity: '', status: '' });
+    const { user } = useAuthStore();
+    const isNational = user?.role === 'national_ops' || user?.role === 'super_admin';
+    // For county officers / responders, pre-lock to their county (backend enforces this anyway)
+    const [filters, setFilters] = useState({
+        county: isNational ? '' : (user?.county_id || ''),
+        severity: '',
+        status: '',
+    });
     const { data: alertsData, loading, refetch } = useAlerts(filters);
     const { data: countiesData } = useCounties();
     const [modalOpen, setModalOpen] = useState(false);
     const navigate = useNavigate();
 
     const setFilter = (k, v) => setFilters(p => ({ ...p, [k]: v }));
-    const clearFilters = () => setFilters({ county: '', severity: '', status: '' });
+    const clearFilters = () => setFilters({ county: isNational ? '' : (user?.county_id || ''), severity: '', status: '' });
 
     const activeFilters = Object.values(filters).filter(Boolean).length;
 
@@ -83,14 +90,20 @@ export function AlertsPage() {
                     <Filter size={11} />
                     Filters {activeFilters > 0 && <span className="text-flood-600 dark:text-flood-400">({activeFilters})</span>}
                 </div>
-                <select
-                    className={SELECT_CLASSES}
-                    value={filters.county}
-                    onChange={e => setFilter('county', e.target.value)}
-                >
-                    <option value="">Jurisdiction: All</option>
-                    {countiesData?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                {isNational ? (
+                    <select
+                        className={SELECT_CLASSES}
+                        value={filters.county}
+                        onChange={e => setFilter('county', e.target.value)}
+                    >
+                        <option value="">Jurisdiction: All</option>
+                        {countiesData?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                ) : (
+                    <span className={SELECT_CLASSES + " opacity-60 cursor-default"}>
+                        Jurisdiction: {countiesData?.find(c => String(c.id) === String(user?.county_id))?.name || 'My County'}
+                    </span>
+                )}
                 <select
                     className={SELECT_CLASSES}
                     value={filters.severity}
