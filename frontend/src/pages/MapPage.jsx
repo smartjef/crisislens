@@ -8,6 +8,8 @@ import CountySelector from "../components/map/CountySelector";
 import MapLegend from "../components/map/MapLegend";
 import IntelSidebar from "../components/tactical/IntelSidebar";
 import DroneReconModal from "../components/tactical/DroneReconModal";
+import { useAuthStore } from "../store/authStore";
+import { MapPin } from "lucide-react";
 
 // Local GeoJSON files for boundaries 
 import kenyaCountiesRaw from "../data/ken_admin1.geojson?raw";
@@ -35,13 +37,16 @@ const focusAreasGeoJSON = {
 };
 
 export default function MapPage() {
+    const { user } = useAuthStore();
+    const isCountyOfficer = user?.role === 'county_officer' || user?.role === 'responder';
+
     const [selectedCounties, setSelectedCounties] = useState(["Nairobi", "Kisumu", "Siaya", "Homa Bay"]);
     const [selectedAreaName, setSelectedAreaName] = useState("");
-    const [selectedHotspot, setSelectedHotspot] = useState(null); // Track active hotspot
-    const [selectedCustomPin, setSelectedCustomPin] = useState(null); // NEW: Track custom dropped pin
-    const [isSimulating, setIsSimulating] = useState(false); // Track simulation state
+    const [selectedHotspot, setSelectedHotspot] = useState(null);
+    const [selectedCustomPin, setSelectedCustomPin] = useState(null);
+    const [isSimulating, setIsSimulating] = useState(false);
     const [mapInstance, setMapInstance] = useState(null);
-    const [isDroneModalOpen, setIsDroneModalOpen] = useState(false); // Global Drone UI
+    const [isDroneModalOpen, setIsDroneModalOpen] = useState(false);
 
     const { data: allCounties, loading: countiesLoading, error: countiesError, refetch: refetchCounties } = useCounties();
 
@@ -51,18 +56,54 @@ export default function MapPage() {
         return allCounties.filter(c => FOCUS_COUNTY_NAMES.has(c.name));
     }, [allCounties]);
 
+    // Resolve the officer's county name from the API data
+    const officerCountyName = useMemo(() => {
+        if (!isCountyOfficer || !user?.county_id || !counties.length) return null;
+        return counties.find(c => String(c.id) === String(user.county_id))?.name || null;
+    }, [isCountyOfficer, user?.county_id, counties]);
+
+    // For county officers, override selectedCounties to just their county
+    const effectiveSelectedCounties = useMemo(() => {
+        if (isCountyOfficer && officerCountyName) return [officerCountyName];
+        return selectedCounties;
+    }, [isCountyOfficer, officerCountyName, selectedCounties]);
+
+    // For county officers, restrict the GeoJSON to only their county
+    const effectiveFocusCountiesGeoJSON = useMemo(() => {
+        if (isCountyOfficer && officerCountyName) {
+            return {
+                ...focusCountiesGeoJSON,
+                features: focusCountiesGeoJSON.features.filter(
+                    f => f.properties.adm1_name === officerCountyName
+                )
+            };
+        }
+        return focusCountiesGeoJSON;
+    }, [isCountyOfficer, officerCountyName]);
+
+    const effectiveFocusAreasGeoJSON = useMemo(() => {
+        if (isCountyOfficer && officerCountyName) {
+            return {
+                ...focusAreasGeoJSON,
+                features: focusAreasGeoJSON.features.filter(
+                    f => f.properties.adm1_name === officerCountyName
+                )
+            };
+        }
+        return focusAreasGeoJSON;
+    }, [isCountyOfficer, officerCountyName]);
+
     // Figure out which county should drive the right-side Panel.
-    // If a hotspot, area, or exactly one county is selected, that drives the panel.
     let panelCountyObj = null;
     if (selectedHotspot) {
         panelCountyObj = counties.find(c => c.name === selectedHotspot.county);
     } else if (selectedAreaName) {
-        const feature = focusAreasGeoJSON.features.find(f => f.properties.adm2_name === selectedAreaName);
+        const feature = effectiveFocusAreasGeoJSON.features.find(f => f.properties.adm2_name === selectedAreaName);
         if (feature) {
             panelCountyObj = counties.find(c => c.name === feature.properties.adm1_name);
         }
-    } else if (selectedCounties.length === 1) {
-        panelCountyObj = counties.find(c => c.name === selectedCounties[0]);
+    } else if (effectiveSelectedCounties.length === 1) {
+        panelCountyObj = counties.find(c => c.name === effectiveSelectedCounties[0]);
     }
 
     const { data: subCountiesData, loading: subCountiesLoading, error: subCountiesError, refetch: refetchSubCounties } = useSubCountyRisk();
@@ -190,21 +231,32 @@ export default function MapPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
-                    {/* Focus Selector */}
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Jurisdictions</h3>
-                            <button onClick={() => setSelectedCounties(["Nairobi", "Kisumu", "Siaya", "Homa Bay", "Kiambu", "Machakos", "Kajiado"])} className="text-[8px] font-bold text-flood-600 uppercase hover:underline">Select All</button>
+                    {/* Focus Selector — hidden for county officers who are locked to their county */}
+                    {isCountyOfficer ? (
+                        <div className="space-y-2">
+                            <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Jurisdiction</h3>
+                            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-surface-border/10 border border-slate-200 dark:border-surface-border rounded-sm">
+                                <MapPin size={10} className="text-emerald-500 shrink-0" />
+                                <span className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide">{officerCountyName || 'My County'}</span>
+                                <span className="ml-auto text-[8px] font-black text-slate-400 px-1.5 py-0.5 bg-slate-200 dark:bg-surface-border rounded-sm uppercase tracking-widest">Locked</span>
+                            </div>
                         </div>
-                        <CountySelector
-                            counties={counties}
-                            selectedCounties={selectedCounties}
-                            onToggleCounty={handleCountyToggle}
-                        />
-                    </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Jurisdictions</h3>
+                                <button onClick={() => setSelectedCounties(["Nairobi", "Kisumu", "Siaya", "Homa Bay", "Kiambu", "Machakos", "Kajiado"])} className="text-[8px] font-bold text-flood-600 uppercase hover:underline">Select All</button>
+                            </div>
+                            <CountySelector
+                                counties={counties}
+                                selectedCounties={selectedCounties}
+                                onToggleCounty={handleCountyToggle}
+                            />
+                        </div>
+                    )}
 
                     {/* Quick Sector Zoom */}
-                    {selectedCounties.length === 1 && (
+                    {effectiveSelectedCounties.length === 1 && (
                         <div className="p-3 bg-slate-50 dark:bg-surface-border/5 border border-slate-200 dark:border-surface-border rounded-sm">
                             <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Sector Zoom</label>
                             <select
@@ -214,7 +266,7 @@ export default function MapPage() {
                             >
                                 <option value="">-- All Sectors --</option>
                                 {subCounties
-                                    .filter(s => kenyaAreas.features.some(f => f.properties.adm2_name === s.name && f.properties.adm1_name === selectedCounties[0]))
+                                    .filter(s => kenyaAreas.features.some(f => f.properties.adm2_name === s.name && f.properties.adm1_name === effectiveSelectedCounties[0]))
                                     .sort((a, b) => a.name.localeCompare(b.name))
                                     .map(area => (
                                         <option key={area.id} value={area.name}>{area.name}</option>
@@ -251,17 +303,17 @@ export default function MapPage() {
             <main className="flex-1 relative flex flex-col min-w-0">
                 <div className="flex-1 relative z-0">
                     <LeafletMap
-                        focusCountiesGeoJSON={focusCountiesGeoJSON}
-                        focusAreasGeoJSON={focusAreasGeoJSON}
+                        focusCountiesGeoJSON={effectiveFocusCountiesGeoJSON}
+                        focusAreasGeoJSON={effectiveFocusAreasGeoJSON}
                         riskByCounty={riskByCounty}
                         areaRiskByKey={robustAreaRiskByKey}
-                        onCountyClick={handleCountyToggle}
+                        onCountyClick={isCountyOfficer ? undefined : handleCountyToggle}
                         onAreaClick={handleAreaClick}
                         onHotspotClick={handleHotspotClick}
                         onCustomPinDrop={handleCustomPinDrop}
                         mapInstance={mapInstance}
                         setMapInstance={setMapInstance}
-                        selectedCounties={selectedCounties}
+                        selectedCounties={effectiveSelectedCounties}
                         selectedArea={selectedAreaName}
                         isSimulating={isSimulating}
                         selectedCustomPin={selectedCustomPin}

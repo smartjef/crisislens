@@ -83,24 +83,37 @@ export default function AlertCreateModal({ isOpen, onClose, onSuccess }) {
                     {/* County Selection */}
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Target County</label>
-                        <select
-                            name="county"
-                            value={formData.county}
-                            onChange={handleChange}
-                            disabled={user?.role === 'county_officer' || isSubmitting}
-                            className={`w-full p-2.5 bg-slate-50 dark:bg-surface-border/10 border ${errors.county ? 'border-danger-500' : 'border-slate-200 dark:border-surface-border'} rounded-sm text-xs focus:border-flood-500 outline-none disabled:opacity-60 transition-all uppercase font-bold`}
-                        >
-                            <option value="">Select County</option>
-                            {counties?.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
+                        {user?.role === 'county_officer' ? (
+                            // County officers see a locked badge — their jurisdiction is pre-set
+                            <div className="w-full p-2.5 bg-slate-100 dark:bg-surface-border/20 border border-slate-200 dark:border-surface-border rounded-sm text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                                <span>{counties?.find(c => String(c.id) === String(formData.county))?.name || 'My County'}</span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-1.5 py-0.5 bg-slate-200 dark:bg-surface-border rounded-sm">Locked</span>
+                            </div>
+                        ) : (
+                            <select
+                                name="county"
+                                value={formData.county}
+                                onChange={handleChange}
+                                disabled={isSubmitting}
+                                className={`w-full p-2.5 bg-slate-50 dark:bg-surface-border/10 border ${errors.county ? 'border-danger-500' : 'border-slate-200 dark:border-surface-border'} rounded-sm text-xs focus:border-flood-500 outline-none disabled:opacity-60 transition-all uppercase font-bold`}
+                            >
+                                <option value="">Select County</option>
+                                {counties?.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        )}
                         {errors.county && <p className="text-[10px] font-bold text-danger-500 mt-1 uppercase tracking-tight">{errors.county}</p>}
                     </div>
 
-                    {/* Sub-County Selection (Optional) */}
+                    {/* Sub-County Selection */}
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Sub-County (Optional)</label>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Specific Sub-County
+                            {user?.role === 'county_officer' && (
+                                <span className="ml-1.5 text-[8px] text-flood-600 dark:text-flood-400 normal-case">— select target sector</span>
+                            )}
+                        </label>
                         <select
                             name="sub_county"
                             value={formData.sub_county}
@@ -108,10 +121,13 @@ export default function AlertCreateModal({ isOpen, onClose, onSuccess }) {
                             disabled={!formData.county || loadingSubs || isSubmitting}
                             className="w-full p-2.5 bg-slate-50 dark:bg-surface-border/10 border border-slate-200 dark:border-surface-border rounded-sm text-xs focus:border-flood-500 outline-none disabled:opacity-60 transition-all uppercase font-bold"
                         >
-                            <option value="">All Regions</option>
-                            {subCounties?.map(sc => (
-                                <option key={sc.id} value={sc.id}>{sc.name}</option>
-                            ))}
+                            <option value="">All Sectors (County-wide)</option>
+                            {loadingSubs
+                                ? <option disabled>Loading sectors...</option>
+                                : subCounties?.map(sc => (
+                                    <option key={sc.id} value={sc.id}>{sc.name}</option>
+                                ))
+                            }
                         </select>
                     </div>
                 </div>

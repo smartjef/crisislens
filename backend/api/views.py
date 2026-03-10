@@ -179,12 +179,12 @@ class AIChatViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
     def create(self, request):
-        # 1. Rate Limiting (10/hr)
+        # 1. Rate Limiting (50/hr)
         hour_ago = timezone.now() - timezone.timedelta(hours=1)
         count = AIRequestLog.objects.filter(user=request.user, timestamp__gte=hour_ago).count()
-        if count >= 10:
+        if count >= 50:
             return Response(
-                {"error": "AI Rate Limit Exceeded: 10 requests per hour. Please wait."},
+                {"error": "AI Rate Limit Exceeded: 50 requests per hour. Please wait."},
                 status=status.HTTP_429_TOO_MANY_REQUESTS
             )
 
@@ -427,18 +427,23 @@ class FloodAlertViewSet(viewsets.ModelViewSet):
         user = self.request.user
         role = getattr(user, "role", None)
 
-        # county_officer & responder only see their own county
-        if user.county_id and role not in _NAT:
-            qs = qs.filter(county_id=user.county_id)
+        # county_officer and responder are scoped to their own county only.
+        # If their county_id is not set, return nothing (don't leak all alerts).
+        if role not in _NAT:
+            if user.county_id:
+                qs = qs.filter(county_id=user.county_id)
+            else:
+                qs = qs.none()
+        else:
+            # national/super roles can optionally filter by county via query param
+            county_id = self.request.query_params.get("county")
+            if county_id:
+                qs = qs.filter(county_id=county_id)
 
-        county_id = self.request.query_params.get("county")
-        if county_id:
-            qs = qs.filter(county_id=county_id)
-            
         severity = self.request.query_params.get("severity")
         if severity:
             qs = qs.filter(severity=severity)
-            
+
         status_param = self.request.query_params.get("status")
         if status_param:
             qs = qs.filter(status=status_param)
