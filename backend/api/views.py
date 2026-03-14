@@ -34,6 +34,41 @@ from api.serializers import (
 )
 from api.services import FLOOD_INDICATORS, score_drought, score_flood
 
+# ── Kenya-specific expert system prompt used by all AI endpoints ────────────
+CRISISLENS_SYSTEM_PROMPT = """\
+You are CrisisLens AI, a Kenya Government early-warning decision-support analyst.
+You specialise in flood and drought risk for Kenya's monitored counties:
+  Homa Bay, Kajiado, Kiambu, Kisumu, Machakos, Nairobi, Siaya.
+
+Key geography and hydrology:
+- Kisumu, Siaya, Homa Bay: Lake Victoria basin — flooding driven by lake levels,
+  Nyando/Sondu/Awach rivers, and Indian Ocean rainfall patterns (March–May, Oct–Dec).
+- Nairobi, Kiambu: Athi River basin — flash-flooding in urban low-lands (Mathare,
+  Mukuru, Kibera) and Ngong/Ruiru rivers during heavy rains.
+- Machakos, Kajiado: Semi-arid; drought primary risk; flash-flooding when El Niño active.
+
+Critical infrastructure at risk:
+- Nyando Bridge (Kisumu): isolates basin at water level > 2.1 m
+- Ahero-Kisumu highway: floods when Nyando River overtops banks
+- Nairobi drainage: Ngong River has 20-year flood return period in informal settlements
+- Kajiado/Machakos: Mombasa road corridor vulnerable to washouts
+
+Institutional context:
+- NDMA (National Drought Management Authority) issues county-level drought alerts
+- County governments activate Disaster Prevention & Preparedness (DPP) plans
+- Kenya Red Cross and WFP operate relief corridors; pre-position at county level
+- Population data: Kisumu ~1.2M, Homa Bay ~1.1M, Nairobi ~4.4M, Siaya ~1M,
+  Kiambu ~2.4M, Machakos ~1.5M, Kajiado ~1.2M
+
+Response style:
+- Use short bullet points; be direct and actionable
+- Always state timing: near-term (0–7 days), medium (7–30 days)
+- Tailor recommendations to the user's role (officer, responder, analyst)
+- If live probability data is provided, reference it explicitly
+- Flag data gaps clearly; never fabricate statistics
+- Respond in English; use standard Kenya emergency terminology
+"""
+
 
 def _fallback_ai_response(payload: dict) -> str:
     """Provide an MVP fallback response when the AI service is unavailable."""
@@ -130,16 +165,12 @@ def ai_feedback(request):
         return Response(output.data, status=status.HTTP_200_OK)
 
     prompt = (
-        "You are CrisisLens, an early warning analyst. Answer the user's question directly and "
-        "clearly, and include any helpful context about the county/area if it improves the answer. "
-        f"County: {payload['county']}, area: {payload.get('area', 'N/A')}, "
-        f"risk type: {payload['risk_type']}. "
-        "If asked, estimate how many people may be affected, describe natural resources, explain "
-        "how resources can support crisis response, and provide a 1-month outlook. "
-        "Also include affected towns/areas, estimated % affected, timing (near-term and follow-on), "
-        "likely impacts, food insecurity implications (prices/supply chains), and clear "
-        "recommendations that are actionable for residents and responders. "
-        "Be creative but realistic, and respond in short bullet points. "
+        f"County: {payload['county']}, Area: {payload.get('area', 'N/A')}, "
+        f"Risk type: {payload['risk_type']}.\n"
+        "Answer the user's question directly. Include: affected towns/areas, "
+        "estimated people affected, timing (near-term and medium-term), "
+        "food insecurity or supply-chain implications if relevant, "
+        "and specific actionable recommendations for residents and responders.\n"
         f"User question: {payload['question']}"
     )
 
@@ -149,11 +180,11 @@ def ai_feedback(request):
         json={
             "model": "gpt-4o-mini",
             "messages": [
-                {"role": "system", "content": "You are a crisis response analyst."},
+                {"role": "system", "content": CRISISLENS_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.7,
-            "max_tokens": 400,
+            "temperature": 0.5,
+            "max_tokens": 500,
         },
         timeout=30,
     )
@@ -202,26 +233,59 @@ class AIChatViewSet(viewsets.ViewSet):
         role = getattr(request.user, 'role', 'analyst')
         county = payload.get("county") or "National"
         area = payload.get("area") or "General"
-        
-        # Build prompt instructions based on role
+
+        # Role-specific focus instruction
         if role == 'responder':
-            role_focus = "Focus on tactical evacuation safety, immediate responder procedures, and field logistics."
+            role_focus = "Focus on tactical evacuation safety, immediate field procedures, and logistics (staging points, access roads, relief corridors)."
         elif role == 'analyst':
-            role_focus = "Focus on deep technical data, hydrological trends, and predictive modeling assumptions."
+            role_focus = "Focus on hydrological trends, model assumptions, confidence intervals, and data-driven forecasting."
+        elif role == 'county_officer':
+            role_focus = "Focus on county-level response coordination, resource mobilisation, inter-agency communication, and policy decisions."
         else:
-            role_focus = "Provide a high-level situational overview and safety guidance."
+            role_focus = "Provide a high-level situational overview suitable for national-level decision makers."
 
-        history_msgs = AIChatMessage.objects.filter(user=request.user).order_by("-timestamp")[1:6]
-        history_text = "\n".join([f"{'AI' if m.is_ai else 'User'}: {m.message}" for m in reversed(list(history_msgs))])
+        # 3. Inject live DB risk data for the county
+        from api.models import FloodPrediction
+        live_risk_lines = []
+        try:
+            county_obj = County.objects.filter(name__iexact=county).first()
+            if county_obj:
+                subs = SubCounty.objects.filter(county=county_obj).prefetch_related("floodprediction_set")
+                for sub in subs:
+                    pred = sub.floodprediction_set.order_by("-predicted_at").first()
+                    if pred:
+                        live_risk_lines.append(
+                            f"  - {sub.name}: {pred.flood_probability:.0f}% ({pred.risk_category}), {pred.lead_time_days}d lead"
+                        )
+                active_alerts_count = FloodAlert.objects.filter(county=county_obj, status="active").count()
+            else:
+                active_alerts_count = FloodAlert.objects.filter(status="active").count()
+        except Exception:
+            live_risk_lines = []
+            active_alerts_count = 0
 
-        prompt = (
-            f"Role: {role}. {role_focus}\n"
-            f"Context: County={county}, Sub-county={area}.\n"
-            f"History:\n{history_text}\n"
-            f"Question: {payload['message']}"
+        live_data_block = ""
+        if live_risk_lines:
+            live_data_block = (
+                f"\n\nLIVE DATABASE SNAPSHOT (use this data explicitly in your answer):"
+                f"\nCounty: {county} — Active alerts: {active_alerts_count}"
+                f"\nSub-county flood probabilities:\n" + "\n".join(live_risk_lines)
+            )
+
+        # 4. Recent conversation history (last 10 exchanges)
+        history_msgs = AIChatMessage.objects.filter(user=request.user).order_by("-timestamp")[1:11]
+        history_text = "\n".join(
+            [f"{'AI' if m.is_ai else 'User'}: {m.message}" for m in reversed(list(history_msgs))]
         )
 
-        # 3. Request logic (Call existing feedback logic or direct)
+        prompt = (
+            f"User role: {role}. {role_focus}\n"
+            f"Current focus: County={county}, Sub-county={area}.{live_data_block}\n"
+            f"\nConversation history:\n{history_text}\n"
+            f"\nUser question: {payload['message']}"
+        )
+
+        # 5. Call OpenAI
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             ai_response = _fallback_ai_response({**payload, "risk_type": "flood", "question": payload["message"]})
@@ -233,10 +297,11 @@ class AIChatViewSet(viewsets.ViewSet):
                     json={
                         "model": "gpt-4o-mini",
                         "messages": [
-                            {"role": "system", "content": "You are CrisisLens, an AI decision support assistant."},
+                            {"role": "system", "content": CRISISLENS_SYSTEM_PROMPT},
                             {"role": "user", "content": prompt},
                         ],
-                        "temperature": 0.7,
+                        "temperature": 0.5,
+                        "max_tokens": 600,
                     },
                     timeout=20
                 )
