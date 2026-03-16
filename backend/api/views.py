@@ -13,8 +13,13 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import PermissionDenied
 
 from django.http import HttpResponse
-from api.models import County, SubCounty, FloodAlert, AuditLog, Report, AIChatMessage, AIRequestLog
-from api.permissions import IsCountyOfficer, IsResponder, IsCountyMember, _NAT, IsAnalyst
+from api.models import (
+    County, SubCounty, FloodAlert, AuditLog, Report, AIChatMessage, AIRequestLog,
+    Incident, IncidentUpdate, FieldUnit, FieldUnitPing,
+    CameraFeed, SocialIntelItem, WeatherObservation,
+    BroadcastRecipient, EarlyWarningBroadcast, AnnotatedZone,
+)
+from api.permissions import IsCountyOfficer, IsResponder, IsCountyMember, _NAT, IsAnalyst, IsNationalOps
 from api.serializers import (
     CountyListSerializer,
     CountyDetailSerializer,
@@ -22,7 +27,6 @@ from api.serializers import (
     SubCountyDetailSerializer,
     FloodAlertSerializer,
     ReportSerializer,
-
     AIFeedbackRequest,
     AIFeedbackResponse,
     DroughtPredictionRequest,
@@ -31,6 +35,16 @@ from api.serializers import (
     FloodPredictionResponse,
     AIChatMessageSerializer,
     AIChatRequestSerializer,
+    IncidentSerializer,
+    IncidentUpdateSerializer,
+    FieldUnitSerializer,
+    FieldUnitPingSerializer,
+    CameraFeedSerializer,
+    SocialIntelItemSerializer,
+    WeatherObservationSerializer,
+    BroadcastRecipientSerializer,
+    EarlyWarningBroadcastSerializer,
+    AnnotatedZoneSerializer,
 )
 from api.services import FLOOD_INDICATORS, score_drought, score_flood
 
@@ -748,3 +762,353 @@ class ReportViewSet(viewsets.ModelViewSet):
 
         doc.build(story)
         return response
+
+
+# ── Enterprise ViewSets ───────────────────────────────────────────────────────
+
+class IncidentViewSet(viewsets.ModelViewSet):
+    serializer_class = IncidentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Incident.objects.select_related(
+            "county", "sub_county", "opened_by"
+        ).prefetch_related("updates").all()
+        user = self.request.user
+        role = getattr(user, "role", None)
+        if role not in _NAT:
+            if user.county_id:
+                qs = qs.filter(county_id=user.county_id)
+            else:
+                qs = qs.none()
+
+        status_param = self.request.query_params.get("status")
+        severity_param = self.request.query_params.get("severity")
+        county_param = self.request.query_params.get("county")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        if severity_param:
+            qs = qs.filter(severity=severity_param)
+        if county_param and role in _NAT:
+            qs = qs.filter(county_id=county_param)
+        return qs
+
+    def perform_create(self, serializer):
+        incident = serializer.save(opened_by=self.request.user)
+        # Auto system timeline entry
+        IncidentUpdate.objects.create(
+            incident=incident,
+            author=self.request.user,
+            body=f"Incident opened by {self.request.user.get_full_name() or self.request.user.email}.",
+            is_system=True,
+        )
+        AuditLog.log(self.request.user, "Incident Opened", incident)
+
+    @action(detail=True, methods=["post"])
+    def add_update(self, request, pk=None):
+        incident = self.get_object()
+        serializer = IncidentUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        update = serializer.save(incident=incident, author=request.user)
+        return Response(IncidentUpdateSerializer(update).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["patch"])
+    def close(self, request, pk=None):
+        incident = self.get_object()
+        incident.status = "closed"
+        incident.closed_by = request.user
+        incident.closed_at = timezone.now()
+        incident.save(update_fields=["status", "closed_by", "closed_at"])
+        IncidentUpdate.objects.create(
+            incident=incident,
+            author=request.user,
+            body=f"Incident closed by {request.user.get_full_name() or request.user.email}.",
+            is_system=True,
+        )
+        AuditLog.log(request.user, "Incident Closed", incident)
+        return Response(self.get_serializer(incident).data)
+
+    @action(detail=True, methods=["patch"])
+    def change_status(self, request, pk=None):
+        incident = self.get_object()
+        new_status = request.data.get("status")
+        if new_status not in dict(Incident.STATUS_CHOICES):
+            return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
+        old = incident.status
+        incident.status = new_status
+        incident.save(update_fields=["status"])
+        IncidentUpdate.objects.create(
+            incident=incident,
+            author=request.user,
+            body=f"Status changed from '{old}' to '{new_status}'.",
+            is_system=True,
+        )
+        return Response(self.get_serializer(incident).data)
+
+
+class FieldUnitViewSet(viewsets.ModelViewSet):
+    serializer_class = FieldUnitSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = FieldUnit.objects.select_related(
+            "county", "operator", "incident"
+        ).prefetch_related("pings").all()
+        user = self.request.user
+        role = getattr(user, "role", None)
+        if role not in _NAT:
+            if user.county_id:
+                qs = qs.filter(county_id=user.county_id)
+            else:
+                qs = qs.none()
+        county_param = self.request.query_params.get("county")
+        if county_param and role in _NAT:
+            qs = qs.filter(county_id=county_param)
+        return qs
+
+    @action(detail=True, methods=["post"])
+    def ping(self, request, pk=None):
+        """Receive a GPS ping from a field unit device."""
+        unit = self.get_object()
+        serializer = FieldUnitPingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ping_obj = serializer.save(unit=unit)
+
+        # Update unit's current position
+        unit.current_lat = ping_obj.lat
+        unit.current_lon = ping_obj.lon
+        unit.last_ping = ping_obj.timestamp
+        unit.status = "active"
+        unit.save(update_fields=["current_lat", "current_lon", "last_ping", "status"])
+
+        # Push to WebSocket group for this county
+        try:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"gps_{unit.county_id}",
+                {
+                    "type": "gps_ping",
+                    "payload": {
+                        "unit_id":   unit.id,
+                        "unit_name": unit.name,
+                        "unit_type": unit.unit_type,
+                        "lat":       ping_obj.lat,
+                        "lon":       ping_obj.lon,
+                        "speed_kmh": ping_obj.speed_kmh,
+                        "heading":   ping_obj.heading,
+                        "battery":   ping_obj.battery_pct,
+                        "ts":        ping_obj.timestamp.isoformat(),
+                    },
+                },
+            )
+        except Exception:
+            pass
+
+        return Response(FieldUnitPingSerializer(ping_obj).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"])
+    def trail(self, request, pk=None):
+        """Return the last 100 GPS pings forming the unit's trail."""
+        unit = self.get_object()
+        pings = unit.pings.all()[:100]
+        return Response(FieldUnitPingSerializer(pings, many=True).data)
+
+
+class CameraFeedViewSet(viewsets.ModelViewSet):
+    serializer_class = CameraFeedSerializer
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsNationalOps()]
+
+    def get_queryset(self):
+        qs = CameraFeed.objects.select_related("county").all()
+        county_param = self.request.query_params.get("county")
+        feed_type = self.request.query_params.get("type")
+        status_param = self.request.query_params.get("status")
+        if county_param:
+            qs = qs.filter(county_id=county_param)
+        if feed_type:
+            qs = qs.filter(feed_type=feed_type)
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs
+
+
+class SocialIntelViewSet(viewsets.ModelViewSet):
+    serializer_class = SocialIntelItemSerializer
+    permission_classes = [IsAuthenticated, IsAnalyst]
+    pagination_class = AlertPagination
+    http_method_names = ["get", "patch", "head", "options"]  # no create/delete via API
+
+    def get_queryset(self):
+        qs = SocialIntelItem.objects.select_related("county", "flagged_by").all()
+        sentiment = self.request.query_params.get("sentiment")
+        county_param = self.request.query_params.get("county")
+        source = self.request.query_params.get("source")
+        flag = self.request.query_params.get("flag")
+        if sentiment:
+            qs = qs.filter(sentiment=sentiment)
+        if county_param:
+            qs = qs.filter(county_id=county_param)
+        if source:
+            qs = qs.filter(source=source)
+        if flag:
+            qs = qs.filter(flag=flag)
+        return qs
+
+    @action(detail=True, methods=["patch"])
+    def flag(self, request, pk=None):
+        item = self.get_object()
+        new_flag = request.data.get("flag")
+        if new_flag not in dict(SocialIntelItem.FLAG_CHOICES):
+            return Response({"detail": "Invalid flag."}, status=status.HTTP_400_BAD_REQUEST)
+        item.flag = new_flag
+        item.flagged_by = request.user
+        item.save(update_fields=["flag", "flagged_by"])
+        return Response(SocialIntelItemSerializer(item).data)
+
+
+class BroadcastViewSet(viewsets.ModelViewSet):
+    serializer_class = EarlyWarningBroadcastSerializer
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsCountyOfficer()]
+
+    def get_queryset(self):
+        return EarlyWarningBroadcast.objects.prefetch_related("counties").all()
+
+    def perform_create(self, serializer):
+        broadcast = serializer.save(sent_by=self.request.user, status="draft")
+        AuditLog.log(self.request.user, "Broadcast Created", broadcast)
+
+    @action(detail=True, methods=["post"])
+    def send(self, request, pk=None):
+        """Trigger async dispatch of this broadcast."""
+        broadcast = self.get_object()
+        if broadcast.status in ("sending", "sent"):
+            return Response(
+                {"detail": f"Broadcast is already {broadcast.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from api.tasks import send_broadcast_task
+        send_broadcast_task.delay(broadcast.id)
+        broadcast.status = "sending"
+        broadcast.save(update_fields=["status"])
+        AuditLog.log(request.user, "Broadcast Dispatched", broadcast)
+        return Response(EarlyWarningBroadcastSerializer(broadcast).data)
+
+
+class BroadcastRecipientViewSet(viewsets.ModelViewSet):
+    serializer_class = BroadcastRecipientSerializer
+    permission_classes = [IsAuthenticated, IsNationalOps]
+
+    def get_queryset(self):
+        qs = BroadcastRecipient.objects.select_related("county", "sub_county").all()
+        county_param = self.request.query_params.get("county")
+        if county_param:
+            qs = qs.filter(county_id=county_param)
+        return qs
+
+
+class WeatherObservationViewSet(viewsets.ModelViewSet):
+    serializer_class = WeatherObservationSerializer
+    pagination_class = AlertPagination
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsNationalOps()]
+
+    def get_queryset(self):
+        qs = WeatherObservation.objects.select_related("county").all()
+        county_param = self.request.query_params.get("county")
+        station = self.request.query_params.get("station")
+        if county_param:
+            qs = qs.filter(county_id=county_param)
+        if station:
+            qs = qs.filter(station_id=station)
+        return qs
+
+
+class AnnotatedZoneViewSet(viewsets.ModelViewSet):
+    serializer_class = AnnotatedZoneSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = AnnotatedZone.objects.select_related("county", "incident", "created_by").all()
+        county_param = self.request.query_params.get("county")
+        incident_param = self.request.query_params.get("incident")
+        if county_param:
+            qs = qs.filter(county_id=county_param)
+        if incident_param:
+            qs = qs.filter(incident_id=incident_param)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+# ── Public (unauthenticated) endpoints ───────────────────────────────────────
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_summary(request):
+    """
+    Public-facing summary endpoint used by the /public portal.
+    Returns only non-sensitive aggregate data: active alerts, affected counties,
+    and latest situation summary.
+    """
+    active_alerts = FloodAlert.objects.filter(status="active").select_related("county")
+    alert_list = [
+        {
+            "id": a.id,
+            "title": a.title,
+            "severity": a.severity,
+            "county": a.county.name,
+            "issued_at": a.created_at.isoformat(),
+        }
+        for a in active_alerts.order_by("-created_at")[:10]
+    ]
+
+    county_count = active_alerts.values("county_id").distinct().count()
+    incident_count = Incident.objects.filter(
+        status__in=["open", "active"]
+    ).count()
+
+    # Latest verified intel items — urgent first, then by recency (no raw snippets in public)
+    urgent_intel = SocialIntelItem.objects.filter(
+        flag="verified"
+    ).exclude(sentiment="positive").order_by("-ingested_at")[:10]
+    intel_titles = [
+        {
+            "title": i.title,
+            "source": i.source,
+            "url": i.url or None,
+            "ts": i.ingested_at.isoformat(),
+            "sentiment": i.sentiment,
+            "county_tag": i.county.name if i.county_id else None,
+        }
+        for i in urgent_intel.select_related("county")
+    ]
+
+    return Response({
+        "active_alerts": alert_list,
+        "affected_counties": county_count,
+        "active_incidents": incident_count,
+        "latest_intel": intel_titles,
+        "as_of": timezone.now().isoformat(),
+    })
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_cameras(request):
+    """Return camera feeds marked as public — used by /public portal."""
+    feeds = CameraFeed.objects.filter(is_public=True, status="online").select_related("county")
+    return Response(CameraFeedSerializer(feeds, many=True).data)

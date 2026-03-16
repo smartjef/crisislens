@@ -4,8 +4,7 @@ import client from '../../api/client';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { Clock, Navigation, CheckCircle2 } from 'lucide-react';
-import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import MapLibreMap from '../../components/map/MapLibreMap';
 import kenyaAreasRaw from '../../data/ken_admin2.geojson?raw';
 import useAlerts from '../../hooks/useAlerts';
 
@@ -35,18 +34,11 @@ export default function ResponderDashboard() {
     usePageTitle('Responder — Field Operations');
     const [counties, setCounties] = useState([]);
     const [ackedIds, setAckedIds] = useState(new Set());
-    const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
 
     const { data: alertsData, loading } = useAlerts({ status: 'active' }, { pollInterval: 60000 });
 
     useEffect(() => {
         client.get('/api/counties/').then(r => setCounties(r.data.slice(0, 3))).catch(() => { });
-
-        const observer = new MutationObserver(() => {
-            setIsDark(document.documentElement.classList.contains('dark'));
-        });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
     }, []);
 
     const alerts = (alertsData?.results || [])
@@ -72,9 +64,7 @@ export default function ResponderDashboard() {
         </div>
     );
 
-    const tileUrl = isDark
-        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+    // tileUrl no longer needed — mini-map uses MapLibreMap
 
     return (
         <div className="p-4 md:p-5 space-y-4 animate-in fade-in duration-500">
@@ -161,19 +151,14 @@ export default function ResponderDashboard() {
                 {/* Intel sidebar - Compact */}
                 <aside className="space-y-4">
                     <Panel title="Sector Geometry">
-                        <div className="h-32 bg-slate-100 dark:bg-surface transition-colors">
-                            <MapContainer center={[0.0236, 34.7679]} zoom={8} zoomControl={false} dragging={false} scrollWheelZoom={false} doubleClickZoom={false} className="h-full w-full grayscale opacity-80 contrast-125 dark:invert dark:opacity-60">
-                                <TileLayer url={tileUrl} />
-                                <GeoJSON data={focusGeoJSON} style={f => {
-                                    const severe = alerts.some(a => a.sub_county_name === f.properties.adm2_name && ['critical', 'high'].includes(a.severity));
-                                    return {
-                                        fillColor: severe ? '#ef4444' : '#334155',
-                                        weight: 1.5,
-                                        color: isDark ? '#475569' : '#cbd5e1',
-                                        fillOpacity: severe ? 0.8 : 0.2
-                                    };
-                                }} />
-                            </MapContainer>
+                        <div className="h-40 overflow-hidden">
+                            <MapLibreMap
+                                focusCountiesGeoJSON={focusGeoJSON}
+                                focusAreasGeoJSON={{ type: "FeatureCollection", features: [] }}
+                                riskByCounty={{}}
+                                areaRiskByKey={{}}
+                                selectedCounties={['Kisumu', 'Siaya', 'Homa Bay']}
+                            />
                         </div>
                     </Panel>
 

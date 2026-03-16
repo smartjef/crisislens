@@ -324,10 +324,10 @@ function PageOperations({ region, setRegion, d, filteredAreas, counties, selecte
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={buildReplaySeries(d)} margin={{ top: 2, right: 4, bottom: 0, left: -20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.08} />
-                      <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700 }} tickLine={false} axisLine={false} interval={3} />
-                      <YAxis tick={{ fontSize: 7 }} tickLine={false} axisLine={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }} tickLine={false} axisLine={false} interval={3} />
+                      <YAxis tick={{ fontSize: 7, fontFamily: "'IBM Plex Mono', monospace" }} tickLine={false} axisLine={false} />
                       <Tooltip
-                        contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}
+                        contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'IBM Plex Sans', sans-serif" }}
                         formatter={(v, name) => [`${v}${name === "prob" ? "%" : ""}`, name.toUpperCase()]}
                       />
                       <Area type="monotone" dataKey="prob" stroke={d.color} strokeWidth={2} fill={d.color} fillOpacity={0.08} dot={false} />
@@ -524,10 +524,10 @@ function PageReplay({ d }) {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={seriesData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.08} />
-                <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700 }} tickLine={false} axisLine={false} interval={3} />
-                <YAxis tick={{ fontSize: 7 }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }} tickLine={false} axisLine={false} interval={3} />
+                <YAxis tick={{ fontSize: 7, fontFamily: "'IBM Plex Mono', monospace" }} tickLine={false} axisLine={false} />
                 <Tooltip
-                  contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}
+                  contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", fontFamily: "'IBM Plex Sans', sans-serif" }}
                   formatter={(v) => [`${v}%`, "Probability"]}
                 />
                 <Area type="monotone" dataKey="prob" stroke={P.accent} strokeWidth={2} fill={P.accent} fillOpacity={0.1} dot={false} />
@@ -541,10 +541,10 @@ function PageReplay({ d }) {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={seriesData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.08} />
-                <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700 }} tickLine={false} axisLine={false} interval={3} />
-                <YAxis tick={{ fontSize: 7 }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 7, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }} tickLine={false} axisLine={false} interval={3} />
+                <YAxis tick={{ fontSize: 7, fontFamily: "'IBM Plex Mono', monospace" }} tickLine={false} axisLine={false} />
                 <Tooltip
-                  contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}
+                  contentStyle={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", fontFamily: "'IBM Plex Sans', sans-serif" }}
                   formatter={(v) => [v.toLocaleString(), "Displaced"]}
                 />
                 <Area type="monotone" dataKey="displaced" stroke={P.warn} strokeWidth={2} fill={P.warn} fillOpacity={0.1} dot={false} />

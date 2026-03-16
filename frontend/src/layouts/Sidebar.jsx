@@ -1,25 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Map, LayoutDashboard, Bell, FileText, Settings, Shield, X, ChevronsRight, ChevronsLeft, Activity, BrainCircuit, LogOut } from 'lucide-react';
+import {
+    Map, LayoutDashboard, Bell, FileText, Settings, Shield,
+    X, ChevronsRight, ChevronsLeft, Activity, BrainCircuit, LogOut,
+    Camera, Radio, AlertCircle, Send, Globe,
+} from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 /* Role → allowed paths */
 const ROLE_PATHS = {
-    super_admin:    ['/map', '/dashboard', '/alerts', '/reports', '/crisis-ai', '/admin', '/settings'],
-    national_ops:   ['/map', '/dashboard', '/alerts', '/reports', '/crisis-ai', '/settings'],
-    county_officer: ['/map', '/dashboard', '/alerts', '/crisis-ai', '/settings'],
-    responder:      ['/map', '/dashboard', '/alerts', '/crisis-ai', '/settings'],
-    analyst:        ['/map', '/dashboard', '/reports', '/crisis-ai', '/settings'],
+    super_admin:    ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/cameras', '/intel', '/reports', '/crisis-ai', '/admin', '/settings'],
+    national_ops:   ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/cameras', '/intel', '/reports', '/crisis-ai', '/settings'],
+    county_officer: ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/cameras', '/crisis-ai', '/settings'],
+    responder:      ['/map', '/dashboard', '/alerts', '/incidents', '/cameras', '/crisis-ai', '/settings'],
+    analyst:        ['/map', '/dashboard', '/reports', '/intel', '/crisis-ai', '/settings'],
 };
 
 const ALL_NAV = [
-    { name: 'Dashboard',  icon: LayoutDashboard, path: '/dashboard' },
-    { name: 'Live Map',   icon: Map,              path: '/map' },
-    { name: 'Alerts',     icon: Bell,             path: '/alerts' },
-    { name: 'Reports',    icon: FileText,         path: '/reports' },
-    { name: 'Crisis AI',  icon: BrainCircuit,     path: '/crisis-ai' },
-    { name: 'Admin',      icon: Shield,           path: '/admin' },
-    { name: 'Settings',   icon: Settings,         path: '/settings' },
+    { name: 'Dashboard',   icon: LayoutDashboard, path: '/dashboard' },
+    { name: 'Live Map',    icon: Map,              path: '/map' },
+    { name: 'Alerts',      icon: Bell,             path: '/alerts' },
+    { name: 'Incidents',   icon: AlertCircle,      path: '/incidents' },
+    { name: 'Broadcasts',  icon: Send,             path: '/broadcasts' },
+    { name: 'Cameras',     icon: Camera,           path: '/cameras' },
+    { name: 'Social Intel',icon: Radio,            path: '/intel' },
+    { name: 'Reports',     icon: FileText,         path: '/reports' },
+    { name: 'Crisis AI',   icon: BrainCircuit,     path: '/crisis-ai' },
+    { name: 'Admin',       icon: Shield,           path: '/admin' },
+    { name: 'Settings',    icon: Settings,         path: '/settings' },
 ];
 
 const ROLE_LABELS = {

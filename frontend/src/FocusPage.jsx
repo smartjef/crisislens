@@ -1,4 +1,5 @@
-import { GeoJSON, MapContainer, TileLayer } from "react-leaflet";
+import React from "react";
+import MapLibreMap from "./components/map/MapLibreMap";
 import kenyaCountiesRaw from "./data/ken_admin1.geojson?raw";
 
 const kenyaCounties = JSON.parse(kenyaCountiesRaw);
@@ -39,17 +40,6 @@ const focusCountyGeoJson = {
   )
 };
 
-const focusMapStyle = (feature) => {
-  const county = feature.properties.adm1_name;
-  const isNairobi = county === "Nairobi";
-
-  return {
-    fillColor: isNairobi ? "#1d4ed8" : "#60a5fa",
-    fillOpacity: isNairobi ? 0.78 : 0.55,
-    color: "#0f172a",
-    weight: isNairobi ? 2 : 1.4
-  };
-};
 
 function FocusPage() {
   return (
@@ -73,21 +63,13 @@ function FocusPage() {
           as adjacent counties that influence runoff and response access.
         </p>
         <div className="focus-map-wrapper">
-          <MapContainer center={[-1.35, 36.95]} zoom={8} className="focus-map" scrollWheelZoom>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <GeoJSON
-              data={focusCountyGeoJson}
-              style={focusMapStyle}
-              onEachFeature={(feature, layer) => {
-                layer.bindTooltip(`<strong>${feature.properties.adm1_name}</strong>`, {
-                  sticky: true
-                });
-              }}
-            />
-          </MapContainer>
+          <MapLibreMap
+            focusCountiesGeoJSON={focusCountyGeoJson}
+            focusAreasGeoJSON={{ type: "FeatureCollection", features: [] }}
+            riskByCounty={{}}
+            areaRiskByKey={{}}
+            selectedCounties={["Nairobi", "Kiambu", "Kajiado"]}
+          />
         </div>
       </section>
 

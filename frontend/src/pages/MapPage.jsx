@@ -3,12 +3,13 @@ import useCounties from "../hooks/useCounties";
 import useSubCountyRisk from "../hooks/useSubCountyRisk";
 import Skeleton from "../components/ui/Skeleton";
 import ErrorCard from "../components/ui/ErrorCard";
-import LeafletMap from "../components/map/LeafletMap";
+import MapLibreMap from "../components/map/MapLibreMap";
 import CountySelector from "../components/map/CountySelector";
 import MapLegend from "../components/map/MapLegend";
 import IntelSidebar from "../components/tactical/IntelSidebar";
 import DroneReconModal from "../components/tactical/DroneReconModal";
 import { useAuthStore } from "../store/authStore";
+import { useDarkMode } from "../hooks/useDarkMode";
 import { MapPin } from "lucide-react";
 
 // Local GeoJSON files for boundaries 
@@ -38,6 +39,8 @@ const focusAreasGeoJSON = {
 
 export default function MapPage() {
     const { user } = useAuthStore();
+    const { theme } = useDarkMode();
+    const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme:dark)").matches);
     const isCountyOfficer = user?.role === 'county_officer' || user?.role === 'responder';
 
     const [selectedCounties, setSelectedCounties] = useState(["Nairobi", "Kisumu", "Siaya", "Homa Bay"]);
@@ -45,7 +48,6 @@ export default function MapPage() {
     const [selectedHotspot, setSelectedHotspot] = useState(null);
     const [selectedCustomPin, setSelectedCustomPin] = useState(null);
     const [isSimulating, setIsSimulating] = useState(false);
-    const [mapInstance, setMapInstance] = useState(null);
     const [isDroneModalOpen, setIsDroneModalOpen] = useState(false);
 
     const { data: allCounties, loading: countiesLoading, error: countiesError, refetch: refetchCounties } = useCounties();
@@ -109,7 +111,7 @@ export default function MapPage() {
     const { data: subCountiesData, loading: subCountiesLoading, error: subCountiesError, refetch: refetchSubCounties } = useSubCountyRisk();
     const subCounties = subCountiesData || [];
 
-    // Map backend arrays into keyed lookups for the Leaflet component
+    // Map backend arrays into keyed lookups for the map component
     const riskByCounty = useMemo(() => {
         return counties.reduce((acc, county) => {
             acc[county.name] = {
@@ -178,14 +180,9 @@ export default function MapPage() {
         if (!selectedCounties.includes(hotspot.county)) {
             setSelectedCounties(prev => [...prev, hotspot.county]);
         }
-        setSelectedAreaName(hotspot.area); // Implicitly select the area the hotspot is in
+        setSelectedAreaName(hotspot.area);
         setSelectedHotspot(hotspot);
         setSelectedCustomPin(null);
-
-        // Auto-zoom map to hotspot
-        if (mapInstance && hotspot.pos) {
-            mapInstance.setView(hotspot.pos, 13, { animate: true });
-        }
     };
 
     const handleCustomPinDrop = (latlng) => {
@@ -302,7 +299,7 @@ export default function MapPage() {
             {/* 2. CENTER CANVAS: GIS Map */}
             <main className="flex-1 relative flex flex-col min-w-0">
                 <div className="flex-1 relative z-0">
-                    <LeafletMap
+                    <MapLibreMap
                         focusCountiesGeoJSON={effectiveFocusCountiesGeoJSON}
                         focusAreasGeoJSON={effectiveFocusAreasGeoJSON}
                         riskByCounty={riskByCounty}
@@ -311,12 +308,12 @@ export default function MapPage() {
                         onAreaClick={handleAreaClick}
                         onHotspotClick={handleHotspotClick}
                         onCustomPinDrop={handleCustomPinDrop}
-                        mapInstance={mapInstance}
-                        setMapInstance={setMapInstance}
                         selectedCounties={effectiveSelectedCounties}
                         selectedArea={selectedAreaName}
                         isSimulating={isSimulating}
                         selectedCustomPin={selectedCustomPin}
+                        darkMode={isDark}
+                        showRadar={true}
                     />
                 </div>
             </main>

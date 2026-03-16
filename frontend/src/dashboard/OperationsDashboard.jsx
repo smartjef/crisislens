@@ -99,9 +99,9 @@ function NationalOverview({ module, setModule, setView, setSelectedCounty }) {
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={droughtTrend}>
               <CartesianGrid />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
+              <XAxis dataKey="month" tick={{ fontFamily: "'IBM Plex Mono', monospace" }} />
+              <YAxis tick={{ fontFamily: "'IBM Plex Mono', monospace" }} />
+              <Tooltip contentStyle={{ fontFamily: "'IBM Plex Sans', sans-serif" }} />
               <Legend />
               <Line dataKey="turkana" stroke="#DC2626" name="County" />
               <Line dataKey="national" stroke="#14B8A6" name="National Avg" />
@@ -154,9 +154,9 @@ function CountyDetail({ module, selectedCounty }) {
         <h3 className="text-sm font-semibold mb-2">Forecast</h3>
         <ResponsiveContainer width="100%" height={180}>
           <AreaChart data={droughtTrend}>
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip />
+            <XAxis dataKey="month" tick={{ fontFamily: "'IBM Plex Mono', monospace" }} />
+            <YAxis tick={{ fontFamily: "'IBM Plex Mono', monospace" }} />
+            <Tooltip contentStyle={{ fontFamily: "'IBM Plex Sans', sans-serif" }} />
             <Area dataKey="turkana" stroke="#0d9488" fill="#ccfbf1" />
           </AreaChart>
         </ResponsiveContainer>
