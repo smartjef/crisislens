@@ -156,3 +156,293 @@ class AIRequestLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user.email} at {self.timestamp}"
+
+
+# ── Enterprise models ─────────────────────────────────────────────────────────
+
+class Incident(models.Model):
+    TYPE_CHOICES = [
+        ("flood", "Flood"),
+        ("drought", "Drought"),
+        ("landslide", "Landslide"),
+        ("infrastructure", "Infrastructure Damage"),
+        ("displacement", "Mass Displacement"),
+        ("other", "Other"),
+    ]
+    STATUS_CHOICES = [
+        ("open", "Open"),
+        ("active", "Active"),
+        ("contained", "Contained"),
+        ("closed", "Closed"),
+    ]
+    SEVERITY_CHOICES = [
+        ("critical", "Critical"),
+        ("high", "High"),
+        ("medium", "Medium"),
+        ("low", "Low"),
+    ]
+
+    title = models.CharField(max_length=200)
+    incident_type = models.CharField(max_length=30, choices=TYPE_CHOICES, default="flood")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="open")
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default="medium")
+    county = models.ForeignKey(County, on_delete=models.CASCADE, related_name="incidents")
+    sub_county = models.ForeignKey(SubCounty, on_delete=models.SET_NULL, null=True, blank=True, related_name="incidents")
+    lat = models.FloatField(null=True, blank=True)
+    lon = models.FloatField(null=True, blank=True)
+    description = models.TextField(blank=True)
+    affected_population = models.IntegerField(default=0)
+    opened_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="opened_incidents")
+    closed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="closed_incidents")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "severity", "county"])]
+
+    def __str__(self) -> str:
+        return f"[{self.get_severity_display()}] {self.title}"
+
+
+class IncidentUpdate(models.Model):
+    incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="updates")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    body = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_system = models.BooleanField(default=False)  # True for auto-generated timeline entries
+
+    class Meta:
+        ordering = ["timestamp"]
+
+    def __str__(self) -> str:
+        return f"Update on {self.incident.title} at {self.timestamp}"
+
+
+class FieldUnit(models.Model):
+    TYPE_CHOICES = [
+        ("vehicle", "Vehicle"),
+        ("boat", "Boat"),
+        ("drone", "Drone"),
+        ("foot", "Foot Patrol"),
+        ("helicopter", "Helicopter"),
+    ]
+    STATUS_CHOICES = [
+        ("active", "Active"),
+        ("standby", "Standby"),
+        ("offline", "Offline"),
+    ]
+
+    name = models.CharField(max_length=100)
+    unit_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default="vehicle")
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    county = models.ForeignKey(County, on_delete=models.CASCADE, related_name="field_units")
+    incident = models.ForeignKey(Incident, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_units")
+    current_lat = models.FloatField(null=True, blank=True)
+    current_lon = models.FloatField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="standby")
+    last_ping = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.get_unit_type_display()})"
+
+
+class FieldUnitPing(models.Model):
+    unit = models.ForeignKey(FieldUnit, on_delete=models.CASCADE, related_name="pings")
+    lat = models.FloatField()
+    lon = models.FloatField()
+    speed_kmh = models.FloatField(default=0)
+    heading = models.FloatField(default=0)  # degrees 0-360
+    battery_pct = models.IntegerField(default=100)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [models.Index(fields=["unit", "timestamp"])]
+
+    def __str__(self) -> str:
+        return f"{self.unit.name} ping at {self.timestamp}"
+
+
+class CameraFeed(models.Model):
+    TYPE_CHOICES = [
+        ("cctv", "CCTV"),
+        ("drone", "Drone"),
+        ("satellite", "Satellite"),
+        ("weather", "Weather Station"),
+        ("river", "River Gauge Camera"),
+    ]
+    STATUS_CHOICES = [
+        ("online", "Online"),
+        ("offline", "Offline"),
+        ("degraded", "Degraded"),
+    ]
+
+    name = models.CharField(max_length=150)
+    location_label = models.CharField(max_length=200, blank=True)
+    lat = models.FloatField()
+    lon = models.FloatField()
+    county = models.ForeignKey(County, on_delete=models.CASCADE, related_name="cameras")
+    stream_url = models.URLField(max_length=500)  # RTSP, HLS, or MJPEG URL
+    feed_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default="cctv")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="offline")
+    is_public = models.BooleanField(default=False)
+    last_checked = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["county", "name"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.get_feed_type_display()}) — {self.county}"
+
+
+class SocialIntelItem(models.Model):
+    SOURCE_CHOICES = [
+        ("twitter", "Twitter/X"),
+        ("facebook", "Facebook"),
+        ("news_rss", "News RSS"),
+        ("radio", "Radio Transcript"),
+        ("manual", "Manual Entry"),
+    ]
+    SENTIMENT_CHOICES = [
+        ("urgent", "Urgent"),
+        ("negative", "Negative"),
+        ("neutral", "Neutral"),
+        ("positive", "Positive"),
+    ]
+    FLAG_CHOICES = [
+        ("unreviewed", "Unreviewed"),
+        ("verified", "Verified"),
+        ("false", "False/Irrelevant"),
+        ("escalated", "Escalated"),
+    ]
+
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default="news_rss")
+    url = models.URLField(max_length=500, blank=True)
+    title = models.CharField(max_length=300, blank=True)
+    snippet = models.TextField()
+    sentiment = models.CharField(max_length=20, choices=SENTIMENT_CHOICES, default="neutral")
+    county = models.ForeignKey(County, on_delete=models.SET_NULL, null=True, blank=True, related_name="intel_items")
+    extracted_lat = models.FloatField(null=True, blank=True)
+    extracted_lon = models.FloatField(null=True, blank=True)
+    tags = models.JSONField(default=list, blank=True)
+    flag = models.CharField(max_length=20, choices=FLAG_CHOICES, default="unreviewed")
+    flagged_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    ingested_at = models.DateTimeField(auto_now_add=True)
+    source_published_at = models.DateTimeField(null=True, blank=True)
+    content_hash = models.CharField(max_length=64, unique=True)  # SHA-256 for dedup
+
+    class Meta:
+        ordering = ["-ingested_at"]
+        indexes = [models.Index(fields=["county", "sentiment", "ingested_at"])]
+
+    def __str__(self) -> str:
+        return f"[{self.get_source_display()}] {self.title[:60]}"
+
+
+class WeatherObservation(models.Model):
+    county = models.ForeignKey(County, on_delete=models.CASCADE, related_name="weather_observations")
+    station_id = models.CharField(max_length=50)
+    station_name = models.CharField(max_length=100, blank=True)
+    rainfall_mm = models.FloatField(default=0)
+    temperature_c = models.FloatField(null=True, blank=True)
+    humidity_pct = models.FloatField(null=True, blank=True)
+    wind_speed_kmh = models.FloatField(null=True, blank=True)
+    river_level_cm = models.FloatField(null=True, blank=True)
+    source = models.CharField(max_length=50, default="kmd")  # kmd, wra, manual
+    observed_at = models.DateTimeField()
+    ingested_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-observed_at"]
+        indexes = [models.Index(fields=["county", "station_id", "observed_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.station_name or self.station_id} — {self.observed_at.date()}"
+
+
+class BroadcastRecipient(models.Model):
+    CHANNEL_CHOICES = [
+        ("sms", "SMS"),
+        ("whatsapp", "WhatsApp"),
+        ("email", "Email"),
+    ]
+
+    county = models.ForeignKey(County, on_delete=models.CASCADE, related_name="broadcast_recipients")
+    sub_county = models.ForeignKey(SubCounty, on_delete=models.SET_NULL, null=True, blank=True)
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=20, blank=True)  # E.164 format e.g. +254712345678
+    email = models.EmailField(blank=True)
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default="sms")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["county", "name"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.phone or self.email})"
+
+
+class EarlyWarningBroadcast(models.Model):
+    CHANNEL_CHOICES = [
+        ("sms", "SMS"),
+        ("whatsapp", "WhatsApp"),
+        ("email", "Email"),
+    ]
+    STATUS_CHOICES = [
+        ("draft", "Draft"),
+        ("sending", "Sending"),
+        ("sent", "Sent"),
+        ("failed", "Failed"),
+    ]
+
+    alert = models.ForeignKey(FloodAlert, on_delete=models.SET_NULL, null=True, blank=True, related_name="broadcasts")
+    incident = models.ForeignKey(Incident, on_delete=models.SET_NULL, null=True, blank=True, related_name="broadcasts")
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default="sms")
+    message = models.TextField()
+    counties = models.ManyToManyField(County, related_name="broadcasts")
+    sent_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    recipient_count = models.IntegerField(default=0)
+    delivered_count = models.IntegerField(default=0)
+    failed_count = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    provider_response = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"[{self.get_channel_display()}] Broadcast {self.id} — {self.status}"
+
+
+class AnnotatedZone(models.Model):
+    TYPE_CHOICES = [
+        ("evacuation_route", "Evacuation Route"),
+        ("staging_area", "Staging Area"),
+        ("cordon", "Cordon Zone"),
+        ("flood_extent", "Estimated Flood Extent"),
+        ("safe_zone", "Safe Zone"),
+    ]
+
+    label = models.CharField(max_length=200)
+    zone_type = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    geojson_geometry = models.JSONField()  # GeoJSON geometry object
+    incident = models.ForeignKey(Incident, on_delete=models.SET_NULL, null=True, blank=True, related_name="annotated_zones")
+    county = models.ForeignKey(County, on_delete=models.CASCADE, related_name="annotated_zones")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.get_zone_type_display()})"

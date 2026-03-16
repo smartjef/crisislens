@@ -20,23 +20,62 @@
     @apply bg-white text-slate-900 dark:bg-surface dark:text-slate-200 min-h-screen transition-colors duration-200;
   }
 
-  /* Leaflet z-index — prevents map controls from going behind modals */
-  .leaflet-pane {
+  /*
+   * SVG text elements (Recharts axis labels, ticks, MapLibre labels, etc.) do NOT
+   * inherit font-family from HTML ancestors in most browsers and fall back to the
+   * browser's default SVG font — typically Times New Roman.
+   * Force IBM Plex Mono on all SVG text so charts look consistent with the rest of the UI.
+   */
+  svg text,
+  svg tspan {
+    font-family: 'IBM Plex Mono', monospace !important;
+  }
+
+  /*
+   * Recharts tooltip and label divs are HTML, but some browsers also apply their
+   * default serif stack to elements without an explicit font-family.
+   * Ensure every element inherits the root font by default.
+   */
+  * {
+    font-family: inherit;
+  }
+
+  /* MapLibre GL z-index — prevents map controls from going behind modals */
+  .maplibregl-map {
+    z-index: 0;
+  }
+
+  .maplibregl-ctrl-top-right,
+  .maplibregl-ctrl-bottom-right {
     z-index: 10;
   }
 
-  .leaflet-top,
-  .leaflet-bottom {
+  .maplibregl-popup {
     z-index: 20;
   }
+}
 
-  .leaflet-control {
-    z-index: 20;
-  }
+/* ==========================================================================
+   CAMERA LIVE VIDEO OVERLAY ANIMATIONS
+   ========================================================================== */
 
-  .leaflet-popup-pane {
-    z-index: 30;
-  }
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(400%); }
+}
+
+@keyframes signal-flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96%            { opacity: 0.6; }
+  98%            { opacity: 0.85; }
+}
+
+.camera-scanline {
+  animation: scanline 4s linear infinite;
+}
+
+.camera-signal {
+  animation: signal-flicker 8s ease-in-out infinite;
 }
 
 /* ==========================================================================

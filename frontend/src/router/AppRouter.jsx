@@ -17,71 +17,66 @@ import SettingsPage from '../pages/SettingsPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import CrisisLensAI from '../pages/CrisisLensAI';
 
+// Enterprise pages
+import IncidentPage   from '../pages/IncidentPage';
+import BroadcastPage  from '../pages/BroadcastPage';
+import CameraPage     from '../pages/CameraPage';
+import SocialIntelPage from '../pages/SocialIntelPage';
+import PublicPortal   from '../pages/PublicPortal';
+
 export default function AppRouter() {
     return (
         <BrowserRouter>
             <Routes>
-                {/* Public / Unauthenticated */}
-                <Route path="/login" element={<LoginPage />} />
+                {/* ── Fully public ──────────────────────────────────── */}
+                <Route path="/login"        element={<LoginPage />} />
                 <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                <Route path="/"             element={<PublicPortal />} />
 
-                {/* 
-                  Redirect the root path. The issue doesn't strictly say where,
-                  but typically it goes to dashboard or map. Let's send them to dashboard.
-                */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-                {/* Secure App Shell Routes */}
+                {/* ── Authenticated app shell ────────────────────────── */}
                 <Route element={<AppShell />}>
-                    {/* The any-auth map route */}
-                    <Route path="/map" element={<PrivateRoute><MapPage /></PrivateRoute>} />
+                    <Route path="/map"      element={<PrivateRoute><MapPage /></PrivateRoute>} />
                     <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
-                    <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-
-                    {/* Dashboard Routing Gateway */}
-                    <Route path="/dashboard" element={<PrivateRoute><DashboardRouter /></PrivateRoute>} />
-
+                    <Route path="/profile"  element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
                     <Route path="/crisis-ai" element={<PrivateRoute><CrisisLensAI /></PrivateRoute>} />
 
-                    {/* Role-specific Dashboards */}
-                    <Route
-                        path="/dashboard/national"
-                        element={<PrivateRoute allowedRoles={['national_ops', 'super_admin']}><NationalOpsDashboard /></PrivateRoute>}
-                    />
-                    <Route
-                        path="/dashboard/county"
-                        element={<PrivateRoute allowedRoles={['county_officer']}><CountyDashboard /></PrivateRoute>}
-                    />
-                    <Route
-                        path="/dashboard/responder"
-                        element={<PrivateRoute allowedRoles={['responder']}><ResponderDashboard /></PrivateRoute>}
-                    />
-                    <Route
-                        path="/dashboard/analyst"
-                        element={<PrivateRoute allowedRoles={['analyst']}><AnalystDashboard /></PrivateRoute>}
-                    />
+                    {/* Dashboard gateway */}
+                    <Route path="/dashboard" element={<PrivateRoute><DashboardRouter /></PrivateRoute>} />
+                    <Route path="/dashboard/national"
+                        element={<PrivateRoute allowedRoles={['national_ops','super_admin']}><NationalOpsDashboard /></PrivateRoute>} />
+                    <Route path="/dashboard/county"
+                        element={<PrivateRoute allowedRoles={['county_officer']}><CountyDashboard /></PrivateRoute>} />
+                    <Route path="/dashboard/responder"
+                        element={<PrivateRoute allowedRoles={['responder']}><ResponderDashboard /></PrivateRoute>} />
+                    <Route path="/dashboard/analyst"
+                        element={<PrivateRoute allowedRoles={['analyst']}><AnalystDashboard /></PrivateRoute>} />
 
-                    {/* Alerts - national_ops, county_officer, responder */}
-                    <Route
-                        path="/alerts"
-                        element={<PrivateRoute allowedRoles={['national_ops', 'county_officer', 'responder']}><AlertsPage /></PrivateRoute>}
-                    />
-                    <Route
-                        path="/alerts/:id"
-                        element={<PrivateRoute allowedRoles={['national_ops', 'county_officer', 'responder']}><AlertDetailPage /></PrivateRoute>}
-                    />
+                    {/* Alerts */}
+                    <Route path="/alerts"
+                        element={<PrivateRoute allowedRoles={['national_ops','county_officer','responder','super_admin']}><AlertsPage /></PrivateRoute>} />
+                    <Route path="/alerts/:id"
+                        element={<PrivateRoute allowedRoles={['national_ops','county_officer','responder','super_admin']}><AlertDetailPage /></PrivateRoute>} />
 
-                    {/* Reports - analyst, national_ops */}
-                    <Route
-                        path="/reports"
-                        element={<PrivateRoute allowedRoles={['analyst', 'national_ops']}><ReportsPage /></PrivateRoute>}
-                    />
+                    {/* Reports */}
+                    <Route path="/reports"
+                        element={<PrivateRoute allowedRoles={['analyst','national_ops','super_admin']}><ReportsPage /></PrivateRoute>} />
 
-                    {/* Admin - super_admin */}
-                    <Route
-                        path="/admin"
-                        element={<PrivateRoute allowedRoles={['super_admin']}><AdminPage /></PrivateRoute>}
-                    />
+                    {/* ── Enterprise routes ──────────────────────────── */}
+                    <Route path="/incidents"
+                        element={<PrivateRoute allowedRoles={['national_ops','county_officer','responder','super_admin']}><IncidentPage /></PrivateRoute>} />
+
+                    <Route path="/broadcasts"
+                        element={<PrivateRoute allowedRoles={['national_ops','county_officer','super_admin']}><BroadcastPage /></PrivateRoute>} />
+
+                    <Route path="/cameras"
+                        element={<PrivateRoute><CameraPage /></PrivateRoute>} />
+
+                    <Route path="/intel"
+                        element={<PrivateRoute allowedRoles={['analyst','national_ops','super_admin']}><SocialIntelPage /></PrivateRoute>} />
+
+                    {/* Admin */}
+                    <Route path="/admin"
+                        element={<PrivateRoute allowedRoles={['super_admin']}><AdminPage /></PrivateRoute>} />
                 </Route>
 
                 {/* Catch-all */}

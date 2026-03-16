@@ -210,10 +210,10 @@ export default function NationalOpsDashboard() {
                                     ))}
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-100 dark:text-surface-border" vertical={false} />
-                                <XAxis dataKey="date" fontSize={9} fontWeight={600} tick={{ fill: 'currentColor' }} className="text-slate-400" axisLine={false} tickLine={false} dy={5} />
-                                <YAxis fontSize={9} fontWeight={600} tick={{ fill: 'currentColor' }} className="text-slate-400" axisLine={false} tickLine={false} />
+                                <XAxis dataKey="date" fontSize={9} fontWeight={600} tick={{ fill: 'currentColor', fontFamily: "'IBM Plex Mono', monospace" }} className="text-slate-400" axisLine={false} tickLine={false} dy={5} />
+                                <YAxis fontSize={9} fontWeight={600} tick={{ fill: 'currentColor', fontFamily: "'IBM Plex Mono', monospace" }} className="text-slate-400" axisLine={false} tickLine={false} />
                                 <Tooltip
-                                    contentStyle={{ background: '#0f172a', border: 'none', borderRadius: 2, fontSize: 10 }}
+                                    contentStyle={{ background: '#0f172a', border: 'none', borderRadius: 2, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif" }}
                                     itemStyle={{ color: '#fff', fontWeight: 700 }}
                                     labelStyle={{ color: '#94a3b8', marginBottom: 2, fontWeight: 700 }}
                                 />
