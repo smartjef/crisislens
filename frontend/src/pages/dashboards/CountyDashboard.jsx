@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import AlertCreateModal from '../../components/alerts/AlertCreateModal';
 import useSubCountyRisk from '../../hooks/useSubCountyRisk';
 import useAlerts from '../../hooks/useAlerts';
+import IntelSummaryWidget from '../../components/IntelSummaryWidget';
 
 function Panel({ title, badge, children, className = '' }) {
     return (
@@ -80,6 +81,35 @@ function ActionCard({ sub }) {
     );
 }
 
+/* ── Skeleton components ─────────────────────────────────────────── */
+const KPISkeleton = () => (
+    <div className="rounded border border-surface-border bg-surface-raised p-4 animate-pulse">
+        <div className="h-2 w-20 bg-surface-border/50 rounded mb-3" />
+        <div className="h-8 w-16 bg-surface-border/50 rounded mb-2" />
+        <div className="h-2 w-24 bg-surface-border/50 rounded" />
+    </div>
+);
+
+const RowSkeleton = () => (
+    <tr className="border-b border-surface-border animate-pulse">
+        <td className="px-4 py-2.5"><div className="h-2.5 bg-surface-border/40 rounded w-28" /></td>
+        <td className="px-4 py-2.5"><div className="h-2 bg-surface-border/30 rounded w-20" /></td>
+        <td className="px-4 py-2.5"><div className="h-5 bg-surface-border/30 rounded w-14" /></td>
+        <td className="px-4 py-2.5"><div className="h-2 bg-surface-border/30 rounded w-12" /></td>
+    </tr>
+);
+
+const AlertRowSkeleton = () => (
+    <div className="flex items-center gap-4 px-4 py-3 border-b border-surface-border animate-pulse">
+        <div className="w-8 h-8 rounded bg-surface-border/40" />
+        <div className="flex-1 space-y-2">
+            <div className="h-2.5 bg-surface-border/40 rounded w-3/4" />
+            <div className="h-2 bg-surface-border/30 rounded w-1/2" />
+        </div>
+        <div className="h-5 w-12 bg-surface-border/30 rounded" />
+    </div>
+);
+
 export default function CountyDashboard() {
     const user = useAuthStore(state => state.user);
     const [county, setCounty] = useState(null);
@@ -110,9 +140,54 @@ export default function CountyDashboard() {
     const alerts = alertsData?.results || [];
 
     if (loading && !county) return (
-        <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
-            <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] animate-pulse">Syncing County Intelligence...</span>
+        <div className="p-4 md:p-5 space-y-4">
+            {/* Header skeleton */}
+            <div className="flex items-center justify-between pb-4 border-b border-surface-border animate-pulse">
+                <div className="space-y-2">
+                    <div className="h-2 w-36 bg-surface-border/50 rounded" />
+                    <div className="h-6 w-52 bg-surface-border/40 rounded" />
+                    <div className="h-4 w-40 bg-surface-border/30 rounded" />
+                </div>
+                <div className="h-9 w-28 bg-surface-border/40 rounded" />
+            </div>
+            {/* KPI row skeleton */}
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[0, 1, 2].map(i => <KPISkeleton key={i} />)}
+            </section>
+            {/* Sub-county table + advisories skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="lg:col-span-2 rounded border border-surface-border bg-surface-raised overflow-hidden animate-pulse">
+                    <div className="px-4 py-2 border-b border-surface-border">
+                        <div className="h-2 w-44 bg-surface-border/50 rounded" />
+                    </div>
+                    <table className="w-full">
+                        <tbody>
+                            {[0, 1, 2, 3, 4].map(i => <RowSkeleton key={i} />)}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="rounded border border-surface-border bg-surface-raised overflow-hidden animate-pulse">
+                    <div className="px-4 py-2 border-b border-surface-border">
+                        <div className="h-2 w-32 bg-surface-border/50 rounded" />
+                    </div>
+                    {[0, 1, 2, 3].map(i => (
+                        <div key={i} className="flex items-start gap-3 px-4 py-3 border-b border-surface-border">
+                            <div className="w-4 h-4 rounded bg-surface-border/40 mt-0.5 shrink-0" />
+                            <div className="flex-1 space-y-2">
+                                <div className="h-2.5 bg-surface-border/40 rounded w-3/4" />
+                                <div className="h-2 bg-surface-border/30 rounded w-1/2" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            {/* Alerts panel skeleton */}
+            <div className="rounded border border-surface-border bg-surface-raised overflow-hidden animate-pulse">
+                <div className="px-4 py-2 border-b border-surface-border">
+                    <div className="h-2 w-40 bg-surface-border/50 rounded" />
+                </div>
+                {[0, 1, 2].map(i => <AlertRowSkeleton key={i} />)}
+            </div>
         </div>
     );
 
@@ -145,6 +220,11 @@ export default function CountyDashboard() {
 
             <AlertCreateModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSuccess={fetchCountyDetail} />
 
+            {/* Intel Summary Widget */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <IntelSummaryWidget countyId={user?.county_id} />
+            </div>
+
             {/* Sub-county matrix + advisories - Compact Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <Panel title="Jurisdiction Vulnerability Matrix" className="lg:col-span-2">
@@ -161,8 +241,14 @@ export default function CountyDashboard() {
                             <tbody className="divide-y divide-slate-100 dark:divide-surface-border">
                                 {sorted.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="px-4 py-8 text-center bg-slate-50/20 dark:bg-surface/5">
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">No sector data synchronized</p>
+                                        <td colSpan={4} className="px-4 py-10">
+                                            <div className="flex flex-col items-center gap-3 text-center">
+                                                <div className="w-10 h-10 rounded border border-surface-border bg-surface flex items-center justify-center">
+                                                    <MapPin size={18} className="text-slate-700" />
+                                                </div>
+                                                <p className="text-xs font-mono text-slate-500">No risk data for this county</p>
+                                                <p className="text-[9px] font-mono text-slate-700">Run seed_counties to populate initial data</p>
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : sorted.map(sub => (
@@ -181,8 +267,12 @@ export default function CountyDashboard() {
                 <Panel title="Sector Protocol Advisories">
                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-surface-border">
                         {sorted.length === 0 ? (
-                            <div className="px-5 py-8 text-center">
-                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic leading-relaxed">System Scan: Awaiting Input</p>
+                            <div className="flex flex-col items-center py-10 gap-3 text-center">
+                                <div className="w-10 h-10 rounded border border-surface-border bg-surface flex items-center justify-center">
+                                    <AlertTriangle size={18} className="text-slate-700" />
+                                </div>
+                                <p className="text-xs font-mono text-slate-500">No advisories for this county</p>
+                                <p className="text-[9px] font-mono text-slate-700">Advisories generate once sub-county data is synced</p>
                             </div>
                         ) : sorted.map(sub => (
                             <ActionCard key={sub.id} sub={sub} />
@@ -203,8 +293,12 @@ export default function CountyDashboard() {
             >
                 <div className="divide-y divide-slate-100 dark:divide-surface-border">
                     {alerts.length === 0 ? (
-                        <div className="px-5 py-10 text-center bg-slate-50/20 dark:bg-surface/5">
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic leading-relaxed">NOC Scan Complete: Sector All-Clear</p>
+                        <div className="flex flex-col items-center py-10 gap-3 text-center">
+                            <div className="w-10 h-10 rounded border border-surface-border bg-surface flex items-center justify-center">
+                                <ShieldAlert size={18} className="text-slate-700" />
+                            </div>
+                            <p className="text-xs font-mono text-slate-500">No active alerts in this jurisdiction</p>
+                            <p className="text-[9px] font-mono text-slate-700">System status: Monitoring</p>
                         </div>
                     ) : alerts.map(alert => (
                         <div key={alert.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-surface/50 transition-all group">

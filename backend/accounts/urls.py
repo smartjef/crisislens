@@ -4,7 +4,7 @@ accounts/urls.py  →  mounted at /api/auth/ in crisislens/urls.py
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .views import LoginView, LogoutView, MeView, ChangePasswordView
+from .views import LoginView, LogoutView, MeView, ChangePasswordView, TOTPSetupView, TOTPConfirmView
 
 urlpatterns = [
     path("login/",           LoginView.as_view(),          name="auth_login"),
@@ -12,4 +12,6 @@ urlpatterns = [
     path("logout/",          LogoutView.as_view(),         name="auth_logout"),
     path("me/",              MeView.as_view(),             name="auth_me"),
     path("change-password/", ChangePasswordView.as_view(), name="auth_change_password"),
+    path("totp/setup/",      TOTPSetupView.as_view(),      name="totp_setup"),
+    path("totp/confirm/",    TOTPConfirmView.as_view(),    name="totp_confirm"),
 ]

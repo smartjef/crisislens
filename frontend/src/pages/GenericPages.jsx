@@ -9,7 +9,7 @@ import { useAuthStore } from '../store/authStore';
 import { useAlertStore } from '../store/useAlertStore';
 import {
     Bell, Plus, Filter, AlertCircle, Shield, Search,
-    ArrowLeft, CheckCheck, Clock, MapPin, User, ChevronRight, Brain, Waves
+    ArrowLeft, CheckCheck, CheckCircle, Clock, MapPin, User, ChevronRight, Brain, Waves
 } from 'lucide-react';
 import useAlerts from '../hooks/useAlerts';
 import useCounties from '../hooks/useCounties';
@@ -59,9 +59,42 @@ export function AlertsPage() {
     const { data: countiesData } = useCounties();
     const [modalOpen, setModalOpen] = useState(false);
     const navigate = useNavigate();
+    const [actionLoading, setActionLoading] = useState({});
+    const [sort, setSort] = useState({ field: 'created_at', dir: 'desc' });
 
     const setFilter = (k, v) => setFilters(p => ({ ...p, [k]: v }));
     const clearFilters = () => setFilters({ county: isNational ? '' : (user?.county_id || ''), severity: '', status: '' });
+
+    const doAlertAction = async (id, action) => {
+        setActionLoading(p => ({ ...p, [id]: action }));
+        try {
+            await client.patch(`/api/alerts/${id}/${action}/`);
+            refetch();
+        } catch (e) { console.error(e); }
+        setActionLoading(p => ({ ...p, [id]: null }));
+    };
+
+    const toggleSort = (field) => {
+        setSort(prev => prev.field === field
+            ? { field, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+            : { field, dir: 'desc' }
+        );
+    };
+
+    const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+    const sortedAlerts = [...(alertsData?.results || [])].sort((a, b) => {
+        let cmp = 0;
+        if (sort.field === 'title') {
+            cmp = (a.title || '').localeCompare(b.title || '');
+        } else if (sort.field === 'created_at') {
+            cmp = new Date(a.created_at) - new Date(b.created_at);
+        } else if (sort.field === 'status') {
+            cmp = (a.status || '').localeCompare(b.status || '');
+        } else if (sort.field === 'severity') {
+            cmp = (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9);
+        }
+        return sort.dir === 'asc' ? cmp : -cmp;
+    });
 
     const activeFilters = Object.values(filters).filter(Boolean).length;
 
@@ -133,11 +166,38 @@ export function AlertsPage() {
                     <table className="w-full text-xs">
                         <thead className="border-b border-slate-100 dark:border-surface-border bg-slate-50/50 dark:bg-surface/30">
                             <tr>
-                                <th className="px-5 py-3 text-left text-[9px] font-black uppercase tracking-widest text-slate-400">Tactical Detail</th>
-                                <th className="px-5 py-3 text-left text-[9px] font-black uppercase tracking-widest text-slate-400">Jurisdiction</th>
-                                <th className="px-5 py-3 text-left text-[9px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                <th className="px-5 py-3 text-left text-[9px] font-black uppercase tracking-widest text-slate-400">Tele-Log</th>
-                                <th className="px-5 py-3 text-right text-[9px] font-black uppercase tracking-widest text-slate-400">Action</th>
+                                {[
+                                    { label: 'Tactical Detail', field: 'title', align: 'left' },
+                                    { label: 'Jurisdiction', field: null, align: 'left' },
+                                    { label: 'Status', field: 'status', align: 'left' },
+                                    { label: 'Tele-Log', field: 'created_at', align: 'left' },
+                                ].map(({ label, field, align }) => (
+                                    <th
+                                        key={label}
+                                        className={`px-5 py-3 text-${align} text-[9px] font-black uppercase tracking-widest text-slate-400 ${field ? 'cursor-pointer select-none hover:text-slate-200 transition-colors' : ''}`}
+                                        onClick={field ? () => toggleSort(field) : undefined}
+                                    >
+                                        <span className="inline-flex items-center gap-1">
+                                            {label}
+                                            {field && (
+                                                <span className="text-[8px] font-mono">
+                                                    {sort.field === field ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}
+                                                </span>
+                                            )}
+                                        </span>
+                                    </th>
+                                ))}
+                                <th
+                                    className="px-5 py-3 text-right text-[9px] font-black uppercase tracking-widest text-slate-400 cursor-pointer select-none hover:text-slate-200 transition-colors"
+                                    onClick={() => toggleSort('severity')}
+                                >
+                                    <span className="inline-flex items-center justify-end gap-1">
+                                        Action
+                                        <span className="text-[8px] font-mono">
+                                            {sort.field === 'severity' ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}
+                                        </span>
+                                    </span>
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-surface-border">
@@ -149,8 +209,8 @@ export function AlertsPage() {
                                         </td>
                                     </tr>
                                 ))
-                            ) : alertsData?.results?.length > 0 ? (
-                                alertsData.results.map(alert => (
+                            ) : sortedAlerts.length > 0 ? (
+                                sortedAlerts.map(alert => (
                                     <tr key={alert.id} className="hover:bg-slate-50/50 dark:hover:bg-surface/30 transition-colors">
                                         <td className="px-5 py-4">
                                             <div className="flex items-center gap-3">
@@ -177,19 +237,45 @@ export function AlertsPage() {
                                             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                         </td>
                                         <td className="px-5 py-4 text-right">
-                                            <button
-                                                onClick={() => navigate(`/alerts/${alert.id}`)}
-                                                className="h-8 px-3 rounded-sm border border-slate-200 dark:border-surface-border text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:border-flood-500 hover:text-flood-600 dark:hover:text-flood-400 transition-all inline-flex items-center gap-1.5"
-                                            >
-                                                VIEW <ChevronRight size={10} strokeWidth={3} />
-                                            </button>
+                                            <div className="inline-flex items-center gap-1.5 justify-end">
+                                                {alert.status === 'active' && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); doAlertAction(alert.id, 'acknowledge'); }}
+                                                        disabled={!!actionLoading[alert.id]}
+                                                        className="h-8 px-2 rounded-sm border border-amber-800/50 text-[9px] font-mono text-amber-400 hover:bg-amber-900/20 transition-all disabled:opacity-40 flex items-center gap-1"
+                                                    >
+                                                        <CheckCheck size={10} /> ACK
+                                                    </button>
+                                                )}
+                                                {alert.status !== 'resolved' && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); doAlertAction(alert.id, 'resolve'); }}
+                                                        disabled={!!actionLoading[alert.id]}
+                                                        className="h-8 px-2 rounded-sm border border-emerald-800/50 text-[9px] font-mono text-emerald-400 hover:bg-emerald-900/20 transition-all disabled:opacity-40 flex items-center gap-1"
+                                                    >
+                                                        <CheckCircle size={10} /> CLOSE
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => navigate(`/alerts/${alert.id}`)}
+                                                    className="h-8 px-3 rounded-sm border border-slate-200 dark:border-surface-border text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:border-flood-500 hover:text-flood-600 dark:hover:text-flood-400 transition-all inline-flex items-center gap-1.5"
+                                                >
+                                                    VIEW <ChevronRight size={10} strokeWidth={3} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="px-5 py-12 text-center">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] italic">No tactical alerts found in designated zone</p>
+                                    <td colSpan={5} className="px-5 py-16 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="w-10 h-10 rounded border border-surface-border bg-surface flex items-center justify-center">
+                                                <Bell size={18} className="text-slate-700" />
+                                            </div>
+                                            <p className="text-xs font-mono text-slate-500">No alerts in this zone</p>
+                                            <p className="text-[9px] font-mono text-slate-700">System is monitoring — last checked just now</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}

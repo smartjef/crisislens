@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import MissionStatusBar from '../components/MissionStatusBar';
 import { PageTitleProvider } from '../hooks/usePageTitle';
 import { useAlertStore } from '../store/useAlertStore';
+import { useAuthStore } from '../store/authStore';
 import { AlertCircle, CheckCircle, Info, X } from 'lucide-react';
 
 function ToastContainer() {
@@ -54,6 +56,25 @@ export default function AppShell() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // 30-min inactivity auto-logout
+    useEffect(() => {
+        let timer;
+        const reset = () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                useAuthStore.getState().logout();
+                window.location.href = '/login';
+            }, 30 * 60 * 1000); // 30 minutes
+        };
+        const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+        events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+        reset(); // start timer
+        return () => {
+            clearTimeout(timer);
+            events.forEach(e => window.removeEventListener(e, reset));
+        };
+    }, []);
+
     const toggleSidebarCollapse = () => {
         const newVal = !isSidebarCollapsed;
         setIsSidebarCollapsed(newVal);
@@ -85,6 +106,7 @@ export default function AppShell() {
                         isSidebarCollapsed={isSidebarCollapsed}
                         isMobile={isMobile}
                     />
+                    <MissionStatusBar />
 
                     <main className="flex-1 overflow-hidden">
                         <Outlet />

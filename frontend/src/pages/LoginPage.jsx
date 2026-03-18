@@ -1,35 +1,9 @@
-/**
- * pages/LoginPage.jsx — Issue #10
- *
- * Production split-screen login page.
- *
- * Layout
- * ──────
- *  Left (40%, hidden on mobile)  — dark navy brand panel
- *    • CrisisLens logo + wordmark
- *    • Tagline
- *    • 3 stat pills
- *    • Footer attribution
- *
- *  Right (100% / 60% desktop)    — white/light auth panel
- *    • "Sign in" heading
- *    • Email + password inputs with inline validation
- *    • Inline 401 error banner
- *    • Sign In button (loading state while request is in-flight)
- *    • "Quick Access" divider + 5 demo role buttons
- *
- * Auth flow
- * ─────────
- *  1. POST /api/auth/login/ { email, password }
- *  2. Store refresh token in localStorage("cl-refresh")
- *  3. Call useAuthStore.login(access, user) — access stays in memory
- *  4. Navigate to the originally requested URL (or /dashboard)
- */
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Activity, AlertTriangle, Users, MapPin, Eye, EyeOff } from 'lucide-react';
+import { Activity, AlertTriangle, Users, MapPin, Eye, EyeOff, ShieldCheck, ChevronLeft } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { loginRequest, getMeRequest } from '../api/auth';
+import client from '../api/client';
 import Spinner from '../components/ui/Spinner';
 
 /* ── Demo accounts (Quick Access) ──────────────────────────────────────── */
@@ -109,7 +83,15 @@ export default function LoginPage() {
     const [errors,      setErrors]      = useState({});
     const [apiError,    setApiError]    = useState('');
     const [loading,     setLoading]     = useState(false);
-    const [demoLoading, setDemoLoading] = useState(null); // index of active demo btn
+    const [demoLoading, setDemoLoading] = useState(null);
+
+    /* TOTP step */
+    const [totpStep,         setTotpStep]         = useState(false);
+    const [partialToken,     setPartialToken]     = useState('');
+    const [totpCode,         setTotpCode]         = useState('');
+    const [totpLoading,      setTotpLoading]      = useState(false);
+    const [totpError,        setTotpError]        = useState('');
+    const totpInputRef = useRef(null);
 
     /* ── Validation ────────────────────────────────────────────────────── */
     function validate(em, pw) {
@@ -137,27 +119,21 @@ export default function LoginPage() {
         try {
             const { data: tokens } = await loginRequest(em, pw);
 
-            // Persist the refresh token so AuthProvider can silently rehydrate on
-            // the next hard refresh. Access token stays in memory via the store.
-            localStorage.setItem('cl-refresh', tokens.refresh);
+            // Check if TOTP step is required
+            if (tokens.requires_totp) {
+                setPartialToken(tokens.partial_token);
+                setTotpStep(true);
+                setTimeout(() => totpInputRef.current?.focus(), 100);
+                return;
+            }
 
-            // Fetch full user profile using the new access token.
-            // The request interceptor in client.js attaches the Bearer header
-            // as soon as we call setAccessToken, but here we're mid-flow so we
-            // pass the token manually via getMeRequest (client picks it up via store
-            // after login is called — but we haven't called login yet).
-            // Simplest approach: call getMeRequest after a temporary store update.
+            localStorage.setItem('cl-refresh', tokens.refresh);
             useAuthStore.getState().setAccessToken(tokens.access);
             const { data: user } = await getMeRequest();
-
-            // Full hydration — replaces the temporary setAccessToken call above.
             login(tokens.access, user);
-
             navigate(from, { replace: true });
         } catch (err) {
-            // Reset any temporary token we set during the flow.
             useAuthStore.getState().setAccessToken(null);
-
             const status = err.response?.status;
             if (status === 401) {
                 setApiError('Invalid email or password. Please try again.');
@@ -169,6 +145,29 @@ export default function LoginPage() {
         } finally {
             setLoading(false);
             setDemoLoading(null);
+        }
+    }
+
+    /* ── TOTP verify ────────────────────────────────────────────────────── */
+    async function handleTotpVerify(e) {
+        e.preventDefault();
+        if (totpCode.length < 6) { setTotpError('Enter the 6-digit code from your authenticator app.'); return; }
+        setTotpLoading(true);
+        setTotpError('');
+        try {
+            const { data } = await client.post('/api/auth/totp/confirm/', { partial_token: partialToken, code: totpCode });
+            localStorage.setItem('cl-refresh', data.refresh);
+            useAuthStore.getState().setAccessToken(data.access);
+            const { data: user } = await getMeRequest();
+            login(data.access, user);
+            navigate(from, { replace: true });
+        } catch (err) {
+            const msg = err.response?.data?.error || err.response?.data?.detail || 'Invalid code. Please try again.';
+            setTotpError(msg);
+            setTotpCode('');
+            totpInputRef.current?.focus();
+        } finally {
+            setTotpLoading(false);
         }
     }
 
@@ -246,111 +245,177 @@ export default function LoginPage() {
                         <span className="font-semibold text-slate-900 font-mono">CrisisLens</span>
                     </div>
 
-                    {/* Page heading */}
-                    <div className="mb-6">
-                        <h2 className="text-xl font-semibold text-slate-900">Sign in to CrisisLens</h2>
-                        <p className="text-slate-500 text-sm mt-0.5">Enter your credentials to continue</p>
-                    </div>
+                    {totpStep ? (
+                        /* ── TOTP verification step ─────────────────────────────────── */
+                        <>
+                            <div className="mb-6">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <ShieldCheck size={18} className="text-flood-500" />
+                                    <h2 className="text-xl font-semibold text-slate-900">Two-Factor Authentication</h2>
+                                </div>
+                                <p className="text-slate-500 text-sm">Enter the 6-digit code from your authenticator app.</p>
+                            </div>
 
-                    {/* API error banner */}
-                    {apiError && (
-                        <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded px-3 py-2.5">
-                            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                            <span>{apiError}</span>
-                        </div>
-                    )}
+                            {totpError && (
+                                <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded px-3 py-2.5">
+                                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                                    <span>{totpError}</span>
+                                </div>
+                            )}
 
-                    {/* Credentials form */}
-                    <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                        <Field
-                            id="email"
-                            label="Email address"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            error={errors.email}
-                            autoComplete="email"
-                        />
-
-                        <Field
-                            id="password"
-                            label="Password"
-                            type={showPwd ? 'text' : 'password'}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            error={errors.password}
-                            autoComplete="current-password"
-                            rightElement={
+                            <form onSubmit={handleTotpVerify} className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">Authentication Code</label>
+                                    <input
+                                        ref={totpInputRef}
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        maxLength={8}
+                                        value={totpCode}
+                                        onChange={e => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                                        placeholder="000000"
+                                        className="w-full px-3 py-2.5 text-center text-xl tracking-[0.5em] font-mono bg-white border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-flood-500 focus:border-transparent placeholder-slate-300"
+                                        autoComplete="one-time-code"
+                                    />
+                                    <p className="mt-1.5 text-xs text-slate-400">Backup codes (8 chars) are also accepted.</p>
+                                </div>
                                 <button
-                                    type="button"
-                                    onClick={() => setShowPwd(!showPwd)}
-                                    className="text-slate-400 hover:text-slate-600 transition-colors"
-                                    aria-label={showPwd ? 'Hide password' : 'Show password'}
+                                    type="submit"
+                                    disabled={totpLoading || totpCode.length < 6}
+                                    className="w-full flex items-center justify-center gap-2 bg-flood-600 hover:bg-flood-700 text-white text-sm font-medium px-4 py-2.5 rounded focus:outline-none focus:ring-2 focus:ring-flood-500 focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                                    {totpLoading && <Spinner size="sm" />}
+                                    {totpLoading ? 'Verifying…' : 'Verify & Sign In'}
                                 </button>
-                            }
-                        />
+                            </form>
 
-                        <button
-                            type="submit"
-                            disabled={busy}
-                            className={[
-                                'w-full flex items-center justify-center gap-2',
-                                'bg-flood-600 hover:bg-flood-700 active:bg-flood-800',
-                                'text-white text-sm font-medium',
-                                'px-4 py-2.5 rounded',
-                                'focus:outline-none focus:ring-2 focus:ring-flood-500 focus:ring-offset-2',
-                                'transition-colors duration-150',
-                                'disabled:opacity-60 disabled:cursor-not-allowed',
-                            ].join(' ')}
-                        >
-                            {loading && <Spinner size="sm" />}
-                            {loading ? 'Signing in…' : 'Sign In'}
-                        </button>
-                    </form>
-
-                    {/* Demo accounts divider */}
-                    <div className="my-6 flex items-center gap-3">
-                        <div className="flex-1 h-px bg-slate-200" />
-                        <span className="text-xs text-slate-400 shrink-0">Quick Access</span>
-                        <div className="flex-1 h-px bg-slate-200" />
-                    </div>
-
-                    {/* Demo role buttons */}
-                    <div className="space-y-1.5">
-                        {DEMO_ACCOUNTS.map((account, idx) => (
                             <button
-                                key={account.email}
                                 type="button"
-                                onClick={() => handleDemo(account, idx)}
-                                disabled={busy}
-                                className={[
-                                    'w-full flex items-center justify-between',
-                                    'bg-white hover:bg-slate-50 active:bg-slate-100',
-                                    'border border-slate-200 hover:border-slate-300',
-                                    'text-slate-700 text-xs',
-                                    'px-3 py-2 rounded',
-                                    'focus:outline-none focus:ring-2 focus:ring-flood-500 focus:ring-offset-1',
-                                    'transition-colors duration-100',
-                                    'disabled:opacity-50 disabled:cursor-not-allowed',
-                                ].join(' ')}
+                                onClick={() => { setTotpStep(false); setTotpCode(''); setTotpError(''); }}
+                                className="mt-4 flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
                             >
-                                <span className="font-medium">{account.label}</span>
-                                <span className="flex items-center gap-1.5 text-slate-400">
-                                    {demoLoading === idx
-                                        ? <Spinner size="sm" />
-                                        : <span className="font-mono text-[10px]">{account.email.split('@')[0]}</span>
-                                    }
-                                </span>
+                                <ChevronLeft size={13} /> Back to sign in
                             </button>
-                        ))}
-                    </div>
+                        </>
+                    ) : (
+                        /* ── Credentials form ───────────────────────────────────────── */
+                        <>
+                            {/* Page heading */}
+                            <div className="mb-6">
+                                <h2 className="text-xl font-semibold text-slate-900">Sign in to CrisisLens</h2>
+                                <p className="text-slate-500 text-sm mt-0.5">Enter your credentials to continue</p>
+                            </div>
 
-                    {/* Demo password note */}
-                    <p className="mt-5 text-center text-xs text-slate-400">
-                        Demo password: <span className="font-mono text-slate-500">Demo1234!</span>
-                    </p>
+                            {/* API error banner */}
+                            {apiError && (
+                                <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded px-3 py-2.5">
+                                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                                    <span>{apiError}</span>
+                                </div>
+                            )}
+
+                            {/* Credentials form */}
+                            <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                                <Field
+                                    id="email"
+                                    label="Email address"
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    error={errors.email}
+                                    autoComplete="email"
+                                />
+
+                                <Field
+                                    id="password"
+                                    label="Password"
+                                    type={showPwd ? 'text' : 'password'}
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    error={errors.password}
+                                    autoComplete="current-password"
+                                    rightElement={
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPwd(!showPwd)}
+                                            className="text-slate-400 hover:text-slate-600 transition-colors"
+                                            aria-label={showPwd ? 'Hide password' : 'Show password'}
+                                        >
+                                            {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                                        </button>
+                                    }
+                                />
+
+                                <button
+                                    type="submit"
+                                    disabled={busy}
+                                    className="w-full flex items-center justify-center gap-2 bg-flood-600 hover:bg-flood-700 active:bg-flood-800 text-white text-sm font-medium px-4 py-2.5 rounded focus:outline-none focus:ring-2 focus:ring-flood-500 focus:ring-offset-2 transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {loading && <Spinner size="sm" />}
+                                    {loading ? 'Signing in…' : 'Sign In'}
+                                </button>
+                            </form>
+
+                            {/* SSO / Federated Access */}
+                            <div className="my-5 flex items-center gap-3">
+                                <div className="flex-1 h-px bg-slate-200" />
+                                <span className="text-xs text-slate-400 shrink-0">Federated Access</span>
+                                <div className="flex-1 h-px bg-slate-200" />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 mb-5">
+                                {[
+                                    { label: 'GoK ICTA SSO', sub: 'SAML 2.0' },
+                                    { label: 'Microsoft Entra', sub: 'Azure AD / OAuth2' },
+                                ].map(s => (
+                                    <button
+                                        key={s.label}
+                                        type="button"
+                                        title="SSO integration — coming soon"
+                                        disabled
+                                        className="flex flex-col items-center justify-center gap-0.5 border border-slate-200 rounded px-3 py-2.5 text-slate-400 bg-white opacity-60 cursor-not-allowed"
+                                    >
+                                        <span className="text-xs font-medium">{s.label}</span>
+                                        <span className="text-[10px] font-mono text-slate-300">{s.sub}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Demo accounts divider */}
+                            <div className="my-5 flex items-center gap-3">
+                                <div className="flex-1 h-px bg-slate-200" />
+                                <span className="text-xs text-slate-400 shrink-0">Quick Access</span>
+                                <div className="flex-1 h-px bg-slate-200" />
+                            </div>
+
+                            {/* Demo role buttons */}
+                            <div className="space-y-1.5">
+                                {DEMO_ACCOUNTS.map((account, idx) => (
+                                    <button
+                                        key={account.email}
+                                        type="button"
+                                        onClick={() => handleDemo(account, idx)}
+                                        disabled={busy}
+                                        className="w-full flex items-center justify-between bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-flood-500 focus:ring-offset-1 transition-colors duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <span className="font-medium">{account.label}</span>
+                                        <span className="flex items-center gap-1.5 text-slate-400">
+                                            {demoLoading === idx
+                                                ? <Spinner size="sm" />
+                                                : <span className="font-mono text-[10px]">{account.email.split('@')[0]}</span>
+                                            }
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Demo password note */}
+                            <p className="mt-5 text-center text-xs text-slate-400">
+                                Demo password: <span className="font-mono text-slate-500">Demo1234!</span>
+                            </p>
+                        </>
+                    )}
                 </div>
             </main>
         </div>

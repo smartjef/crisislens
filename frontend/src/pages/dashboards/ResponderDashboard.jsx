@@ -25,6 +25,46 @@ function Panel({ title, children, className = '' }) {
     );
 }
 
+/* ── Skeleton components ─────────────────────────────────────────── */
+const AlertCardSkeleton = () => (
+    <div className="rounded border border-surface-border bg-surface-raised flex overflow-hidden animate-pulse">
+        <div className="w-1 bg-surface-border/50 shrink-0" />
+        <div className="flex flex-col md:flex-row flex-1 divide-y md:divide-y-0 md:divide-x divide-surface-border">
+            <div className="p-4 flex-1 space-y-3">
+                <div className="flex items-center gap-3">
+                    <div className="h-5 w-16 bg-surface-border/40 rounded" />
+                    <div className="h-2.5 w-32 bg-surface-border/30 rounded" />
+                </div>
+                <div className="h-3.5 w-3/4 bg-surface-border/40 rounded" />
+                <div className="space-y-1.5">
+                    <div className="h-2 w-full bg-surface-border/30 rounded" />
+                    <div className="h-2 w-5/6 bg-surface-border/30 rounded" />
+                </div>
+                <div className="flex gap-4">
+                    <div className="h-2 w-16 bg-surface-border/30 rounded" />
+                    <div className="h-2 w-24 bg-surface-border/30 rounded" />
+                </div>
+            </div>
+            <div className="px-4 py-4 flex items-center justify-center bg-surface/30 shrink-0 md:w-36">
+                <div className="h-8 w-full bg-surface-border/40 rounded" />
+            </div>
+        </div>
+    </div>
+);
+
+const TelemetryRowSkeleton = () => (
+    <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-border animate-pulse">
+        <div className="space-y-1.5">
+            <div className="h-2.5 w-20 bg-surface-border/40 rounded" />
+            <div className="h-2 w-14 bg-surface-border/30 rounded" />
+        </div>
+        <div className="text-right space-y-1.5">
+            <div className="h-3 w-8 bg-surface-border/40 rounded" />
+            <div className="h-2 w-12 bg-surface-border/30 rounded" />
+        </div>
+    </div>
+);
+
 function SeverityBar({ severity }) {
     const colors = { critical: 'bg-red-500', high: 'bg-amber-500', medium: 'bg-flood-500', low: 'bg-emerald-500' };
     return <div className={`w-1 self-stretch ${colors[severity] || 'bg-slate-400'} shrink-0`} />;
@@ -58,9 +98,37 @@ export default function ResponderDashboard() {
     };
 
     if (loading && alerts.length === 0) return (
-        <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
-            <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] animate-pulse">Initializing Field Comms...</span>
+        <div className="p-4 md:p-5 space-y-4">
+            {/* Header skeleton */}
+            <div className="flex items-center justify-between pb-4 border-b border-surface-border animate-pulse">
+                <div className="space-y-2">
+                    <div className="h-2 w-36 bg-surface-border/50 rounded" />
+                    <div className="h-6 w-48 bg-surface-border/40 rounded" />
+                </div>
+                <div className="h-7 w-28 bg-surface-border/40 rounded" />
+            </div>
+            {/* Alert queue + sidebar skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                <div className="lg:col-span-3 space-y-3">
+                    {[0, 1, 2].map(i => <AlertCardSkeleton key={i} />)}
+                </div>
+                <aside className="space-y-4">
+                    {/* Map panel skeleton */}
+                    <div className="rounded border border-surface-border bg-surface-raised overflow-hidden animate-pulse">
+                        <div className="px-4 py-2 border-b border-surface-border">
+                            <div className="h-2 w-24 bg-surface-border/50 rounded" />
+                        </div>
+                        <div className="h-40 bg-surface-border/20" />
+                    </div>
+                    {/* Telemetry panel skeleton */}
+                    <div className="rounded border border-surface-border bg-surface-raised overflow-hidden animate-pulse">
+                        <div className="px-4 py-2 border-b border-surface-border">
+                            <div className="h-2 w-28 bg-surface-border/50 rounded" />
+                        </div>
+                        {[0, 1, 2].map(i => <TelemetryRowSkeleton key={i} />)}
+                    </div>
+                </aside>
+            </div>
         </div>
     );
 

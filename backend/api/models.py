@@ -294,6 +294,8 @@ class CameraFeed(models.Model):
     is_public = models.BooleanField(default=False)
     last_checked = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    agency = models.CharField(max_length=50, blank=True, default='Other')
+    notes  = models.TextField(blank=True)
 
     class Meta:
         ordering = ["county", "name"]
@@ -385,6 +387,37 @@ class BroadcastRecipient(models.Model):
 
     class Meta:
         ordering = ["county", "name"]
+        constraints = [
+            # Same phone can't be on the same channel twice
+            models.UniqueConstraint(
+                fields=["phone", "channel"],
+                condition=models.Q(phone__gt=""),
+                name="unique_recipient_phone_channel",
+            ),
+            # Same email can't be on the same channel twice
+            models.UniqueConstraint(
+                fields=["email", "channel"],
+                condition=models.Q(email__gt=""),
+                name="unique_recipient_email_channel",
+            ),
+        ]
+
+    @staticmethod
+    def normalize_phone(phone: str) -> str:
+        """Normalize Kenyan phone numbers to E.164 (+254XXXXXXXXX)."""
+        import re
+        if not phone:
+            return phone
+        p = re.sub(r"[\s\-\(\)]", "", phone.strip())
+        if re.match(r"^0[17]\d{8}$", p):      # 07XXXXXXXX / 01XXXXXXXX
+            p = "+254" + p[1:]
+        elif re.match(r"^254\d{9}$", p):       # 2547XXXXXXXX (no +)
+            p = "+" + p
+        return p
+
+    def save(self, *args, **kwargs):
+        self.phone = self.normalize_phone(self.phone)
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.phone or self.email})"
@@ -446,3 +479,46 @@ class AnnotatedZone(models.Model):
 
     def __str__(self) -> str:
         return f"{self.label} ({self.get_zone_type_display()})"
+
+
+class AlertSubscription(models.Model):
+    CHANNEL_CHOICES = [
+        ("sms", "SMS"),
+        ("email", "Email"),
+    ]
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES, default='sms')
+    county = models.ForeignKey(County, on_delete=models.CASCADE, related_name='subscriptions', null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('phone', 'county'), ('email', 'county')]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.phone or self.email} — {self.county}"
+
+
+import secrets as _secrets
+
+
+class APIKey(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='api_keys')
+    name = models.CharField(max_length=100)  # e.g. "Dashboard integration"
+    key = models.CharField(max_length=64, unique=True)
+    is_active = models.BooleanField(default=True)
+    last_used = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email} — {self.name}"
+
+    @classmethod
+    def generate(cls, user, name):
+        key = _secrets.token_hex(32)
+        return cls.objects.create(user=user, name=name, key=key)

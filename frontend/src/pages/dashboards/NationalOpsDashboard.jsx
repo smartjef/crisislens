@@ -7,6 +7,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { ShieldAlert, MapPin, Users, Clock, ArrowRight, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AlertCreateModal from '../../components/alerts/AlertCreateModal';
+import IntelSummaryWidget from '../../components/IntelSummaryWidget';
 
 /* ── Panel Component ─────────────────────────────────────────── */
 function Panel({ title, action, children, className = '' }) {
@@ -92,6 +93,46 @@ function SortTh({ label, sortKey, sortConfig, onSort, className = '' }) {
     );
 }
 
+/* ── Skeleton components ─────────────────────────────────────────── */
+const KPISkeleton = () => (
+    <div className="rounded border border-surface-border bg-surface-raised p-4 animate-pulse">
+        <div className="h-2 w-20 bg-surface-border/50 rounded mb-3" />
+        <div className="h-8 w-16 bg-surface-border/50 rounded mb-2" />
+        <div className="h-2 w-24 bg-surface-border/50 rounded" />
+    </div>
+);
+
+const AlertRowSkeleton = () => (
+    <div className="flex items-center gap-4 px-4 py-3 border-b border-surface-border animate-pulse">
+        <div className="w-8 h-8 rounded bg-surface-border/40" />
+        <div className="flex-1 space-y-2">
+            <div className="h-2.5 bg-surface-border/40 rounded w-3/4" />
+            <div className="h-2 bg-surface-border/30 rounded w-1/2" />
+        </div>
+        <div className="h-5 w-12 bg-surface-border/30 rounded" />
+    </div>
+);
+
+const ChartSkeleton = () => (
+    <div className="rounded border border-surface-border bg-surface-raised p-4 animate-pulse">
+        <div className="h-2 w-24 bg-surface-border/50 rounded mb-4" />
+        <div className="h-32 bg-surface-border/20 rounded flex items-end gap-2 px-2">
+            {[40, 60, 45, 70, 55, 80, 65].map((h, i) => (
+                <div key={i} className="flex-1 bg-surface-border/40 rounded-t" style={{ height: `${h}%` }} />
+            ))}
+        </div>
+    </div>
+);
+
+const TableRowSkeleton = () => (
+    <tr className="border-b border-surface-border animate-pulse">
+        <td className="px-4 py-2.5"><div className="h-2.5 bg-surface-border/40 rounded w-24" /></td>
+        <td className="px-4 py-2.5"><div className="h-2 bg-surface-border/30 rounded w-20" /></td>
+        <td className="px-4 py-2.5"><div className="h-5 bg-surface-border/30 rounded w-14" /></td>
+        <td className="px-4 py-2.5"><div className="h-2 bg-surface-border/30 rounded w-12" /></td>
+    </tr>
+);
+
 /* ═══════════════════════════════════════════════════════════════════ */
 export default function NationalOpsDashboard() {
     usePageTitle('National Operations Center');
@@ -155,9 +196,41 @@ export default function NationalOpsDashboard() {
     }, [trendData]);
 
     if (loading) return (
-        <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
-            <div className="w-6 h-6 border-2 border-flood-600 border-t-transparent rounded-full animate-spin" />
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] animate-pulse">Syncing NOC Intel...</span>
+        <div className="p-4 md:p-5 space-y-4">
+            {/* Header skeleton */}
+            <div className="flex items-center justify-between pb-4 border-b border-surface-border animate-pulse">
+                <div className="space-y-2">
+                    <div className="h-2 w-48 bg-surface-border/50 rounded" />
+                    <div className="h-6 w-56 bg-surface-border/40 rounded" />
+                    <div className="h-2 w-64 bg-surface-border/30 rounded" />
+                </div>
+                <div className="h-9 w-32 bg-surface-border/40 rounded" />
+            </div>
+            {/* KPI row skeleton */}
+            <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[0, 1, 2, 3].map(i => <KPISkeleton key={i} />)}
+            </section>
+            {/* Chart + alerts skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <ChartSkeleton className="lg:col-span-2" />
+                <div className="rounded border border-surface-border bg-surface-raised overflow-hidden animate-pulse">
+                    <div className="px-4 py-2 border-b border-surface-border">
+                        <div className="h-2 w-32 bg-surface-border/50 rounded" />
+                    </div>
+                    {[0, 1, 2, 3, 4].map(i => <AlertRowSkeleton key={i} />)}
+                </div>
+            </div>
+            {/* Table skeleton */}
+            <div className="rounded border border-surface-border bg-surface-raised overflow-hidden animate-pulse">
+                <div className="px-4 py-2 border-b border-surface-border">
+                    <div className="h-2 w-40 bg-surface-border/50 rounded" />
+                </div>
+                <table className="w-full">
+                    <tbody>
+                        {[0, 1, 2, 3].map(i => <TableRowSkeleton key={i} />)}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 
@@ -188,6 +261,11 @@ export default function NationalOpsDashboard() {
                 <KPI title="Pop at Risk" value={stats?.pop_at_risk?.toLocaleString()} icon={Users} accent="flood" />
                 <KPI title="Avg Lead Time" value={stats?.avg_lead_time ? `${stats.avg_lead_time}d` : null} icon={Clock} accent="indigo" />
             </section>
+
+            {/* Intel Summary Widget */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+                <IntelSummaryWidget />
+            </div>
 
             {/* Chart + alerts feed */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -230,7 +308,13 @@ export default function NationalOpsDashboard() {
                 <Panel title="Live Intelligence Feed">
                     <div className="divide-y divide-slate-100 dark:divide-surface-border max-h-[224px] overflow-y-auto custom-scrollbar">
                         {recentAlerts.length === 0 ? (
-                            <div className="px-5 py-8 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest italic leading-relaxed">System Scan: Nominal</div>
+                            <div className="flex flex-col items-center py-10 gap-3 text-center">
+                                <div className="w-10 h-10 rounded border border-surface-border bg-surface flex items-center justify-center">
+                                    <ShieldAlert size={18} className="text-slate-700" />
+                                </div>
+                                <p className="text-xs font-mono text-slate-500">No active alerts in monitored counties</p>
+                                <p className="text-[9px] font-mono text-slate-700">System status: Monitoring</p>
+                            </div>
                         ) : recentAlerts.map(alert => (
                             <Link
                                 key={alert.id}
@@ -267,6 +351,19 @@ export default function NationalOpsDashboard() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-surface-border">
+                            {sortedCounties.length === 0 && (
+                                <tr>
+                                    <td colSpan={4} className="px-4 py-10">
+                                        <div className="flex flex-col items-center gap-3 text-center">
+                                            <div className="w-10 h-10 rounded border border-surface-border bg-surface flex items-center justify-center">
+                                                <MapPin size={18} className="text-slate-700" />
+                                            </div>
+                                            <p className="text-xs font-mono text-slate-500">No county risk data available</p>
+                                            <p className="text-[9px] font-mono text-slate-700">Awaiting telemetry synchronisation</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                             {sortedCounties.map(c => (
                                 <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-surface/30 transition-colors">
                                     <td className="px-4 py-2 font-black text-slate-800 dark:text-slate-200 capitalize tracking-tight">{c.name}</td>

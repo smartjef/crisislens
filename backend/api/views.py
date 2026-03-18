@@ -1,6 +1,7 @@
 """API views for CrisisLens MVP."""
 from __future__ import annotations
 
+import json as _json
 import os
 
 import requests
@@ -82,6 +83,113 @@ Response style:
 - Flag data gaps clearly; never fabricate statistics
 - Respond in English; use standard Kenya emergency terminology
 """
+
+
+CRISISLENS_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_active_alerts",
+            "description": "Get current active flood alerts, optionally filtered by county",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_name": {"type": "string", "description": "County name to filter by, or empty for all"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_county_risk",
+            "description": "Get current flood risk scores and probabilities for a county's sub-counties",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_name": {"type": "string", "description": "Name of the county"}
+                },
+                "required": ["county_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_recent_incidents",
+            "description": "Get recent open or active incidents",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_name": {"type": "string", "description": "Filter by county name, or empty for all"},
+                    "limit": {"type": "integer", "description": "Max number of incidents to return", "default": 5}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_social_intel_summary",
+            "description": "Get social media and news intelligence summary for a county in the last 6 hours",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_name": {"type": "string", "description": "County name"}
+                },
+                "required": []
+            }
+        }
+    }
+]
+
+
+def _tool_get_active_alerts(county_name=""):
+    qs = FloodAlert.objects.filter(status='active').select_related('county').order_by('-created_at')[:10]
+    if county_name:
+        qs = qs.filter(county__name__icontains=county_name)
+    return [{'id': a.id, 'title': a.title, 'severity': a.severity, 'county': a.county.name, 'created_at': a.created_at.isoformat()} for a in qs]
+
+
+def _tool_get_county_risk(county_name):
+    from api.models import FloodPrediction
+    county = County.objects.filter(name__icontains=county_name).first()
+    if not county:
+        return {'error': f'County {county_name} not found'}
+    subs = SubCounty.objects.filter(county=county).prefetch_related('floodprediction_set')
+    result = []
+    for sub in subs:
+        pred = sub.floodprediction_set.order_by('-predicted_at').first()
+        if pred:
+            result.append({'sub_county': sub.name, 'probability': pred.flood_probability, 'risk_category': pred.risk_category, 'lead_time_days': pred.lead_time_days})
+    return result
+
+
+def _tool_get_recent_incidents(county_name="", limit=5):
+    qs = Incident.objects.filter(status__in=['open', 'active']).select_related('county').order_by('-created_at')[:limit]
+    if county_name:
+        qs = qs.filter(county__name__icontains=county_name)
+    return [{'id': i.id, 'title': i.title, 'severity': i.severity, 'status': i.status, 'county': i.county.name, 'affected_population': i.affected_population} for i in qs]
+
+
+def _tool_get_social_intel_summary(county_name=""):
+    from django.utils import timezone
+    from datetime import timedelta
+    since = timezone.now() - timedelta(hours=6)
+    qs = SocialIntelItem.objects.filter(ingested_at__gte=since)
+    if county_name:
+        qs = qs.filter(county__name__icontains=county_name)
+    return {'total': qs.count(), 'urgent': qs.filter(sentiment='urgent').count(), 'negative': qs.filter(sentiment='negative').count(), 'top_items': list(qs.values('title', 'sentiment', 'source')[:3])}
+
+
+TOOL_FUNCTIONS = {
+    'get_active_alerts': _tool_get_active_alerts,
+    'get_county_risk': _tool_get_county_risk,
+    'get_recent_incidents': _tool_get_recent_incidents,
+    'get_social_intel_summary': _tool_get_social_intel_summary,
+}
 
 
 def _fallback_ai_response(payload: dict) -> str:
@@ -192,7 +300,7 @@ def ai_feedback(request):
         "https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
-            "model": "gpt-4o-mini",
+            "model": "gpt-4o",
             "messages": [
                 {"role": "system", "content": CRISISLENS_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
@@ -305,24 +413,78 @@ class AIChatViewSet(viewsets.ViewSet):
             ai_response = _fallback_ai_response({**payload, "risk_type": "flood", "question": payload["message"]})
         else:
             try:
+                # Build messages for tool calling
+                messages_for_api = [
+                    {"role": "system", "content": CRISISLENS_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ]
+
+                # First call with tools
                 res = requests.post(
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}"},
                     json={
-                        "model": "gpt-4o-mini",
-                        "messages": [
-                            {"role": "system", "content": CRISISLENS_SYSTEM_PROMPT},
-                            {"role": "user", "content": prompt},
-                        ],
+                        "model": "gpt-4o",
+                        "messages": messages_for_api,
+                        "tools": CRISISLENS_TOOLS,
+                        "tool_choice": "auto",
                         "temperature": 0.5,
-                        "max_tokens": 600,
+                        "max_tokens": 1200,
                     },
-                    timeout=20
+                    timeout=30
                 )
-                if res.status_code == 200:
-                    ai_response = res.json()["choices"][0]["message"]["content"]
-                else:
+
+                if res.status_code != 200:
                     ai_response = f"AI Service Error: {res.text[:100]}"
+                else:
+                    result = res.json()
+                    choice = result["choices"][0]
+
+                    # Handle tool calls
+                    if choice.get("finish_reason") == "tool_calls":
+                        tool_calls = choice["message"].get("tool_calls", [])
+                        messages_for_api.append(choice["message"])  # append assistant message with tool_calls
+
+                        # Execute each tool call
+                        for tc in tool_calls:
+                            fn_name = tc["function"]["name"]
+                            try:
+                                fn_args = _json.loads(tc["function"]["arguments"])
+                            except Exception:
+                                fn_args = {}
+
+                            if fn_name in TOOL_FUNCTIONS:
+                                try:
+                                    tool_result = TOOL_FUNCTIONS[fn_name](**fn_args)
+                                except Exception as e:
+                                    tool_result = {'error': str(e)}
+                            else:
+                                tool_result = {'error': f'Unknown tool: {fn_name}'}
+
+                            messages_for_api.append({
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": _json.dumps(tool_result),
+                            })
+
+                        # Second call with tool results
+                        res2 = requests.post(
+                            "https://api.openai.com/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {api_key}"},
+                            json={
+                                "model": "gpt-4o",
+                                "messages": messages_for_api,
+                                "temperature": 0.5,
+                                "max_tokens": 1200,
+                            },
+                            timeout=30
+                        )
+                        if res2.status_code == 200:
+                            ai_response = res2.json()["choices"][0]["message"]["content"]
+                        else:
+                            ai_response = f"AI Tool Error: {res2.text[:100]}"
+                    else:
+                        ai_response = choice["message"]["content"]
             except Exception as e:
                 ai_response = f"Connection failed: {str(e)}"
 
@@ -1015,6 +1177,119 @@ class BroadcastRecipientViewSet(viewsets.ModelViewSet):
             qs = qs.filter(county_id=county_param)
         return qs
 
+    def create(self, request, *args, **kwargs):
+        """Override create to normalize phone and skip duplicates gracefully."""
+        data = request.data.copy()
+        phone = BroadcastRecipient.normalize_phone((data.get("phone") or "").strip())
+        email = (data.get("email") or "").strip()
+        channel = (data.get("channel") or "sms").strip()
+
+        # Check for existing record on same phone+channel or email+channel
+        if phone:
+            if BroadcastRecipient.objects.filter(phone=phone, channel=channel).exists():
+                existing = BroadcastRecipient.objects.filter(phone=phone, channel=channel).first()
+                serializer = self.get_serializer(existing)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+        if email and not phone:
+            if BroadcastRecipient.objects.filter(email=email, channel=channel).exists():
+                existing = BroadcastRecipient.objects.filter(email=email, channel=channel).first()
+                serializer = self.get_serializer(existing)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+        data["phone"] = phone
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='import-csv')
+    def import_csv(self, request):
+        """
+        POST /api/broadcast-recipients/import-csv/
+        Accepts a multipart CSV file upload with columns:
+          name, phone, email, channel, county_code, sub_county_name
+        Creates BroadcastRecipient objects, skipping duplicates (same phone+county).
+        Returns {created: N, skipped: N, errors: [...]}
+        """
+        import csv as csv_module
+        import io
+
+        # Permission check: IsCountyOfficer or IsNationalOps
+        user = request.user
+        role = getattr(user, 'role', None)
+        if role not in ('county_officer', 'national_ops', 'superuser'):
+            return Response(
+                {"detail": "Permission denied. Requires County Officer or National Ops role."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        csv_file = request.FILES.get('file')
+        if not csv_file:
+            return Response({"detail": "No file uploaded. Send file as 'file' field."}, status=status.HTTP_400_BAD_REQUEST)
+
+        created_count = 0
+        skipped_count = 0
+        errors = []
+
+        try:
+            decoded = csv_file.read().decode('utf-8-sig')
+            reader = csv_module.DictReader(io.StringIO(decoded))
+        except Exception as exc:
+            return Response({"detail": f"Could not parse CSV: {exc}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        for row_num, row in enumerate(reader, start=2):  # row 1 = header
+            name = (row.get('name') or '').strip()
+            phone = (row.get('phone') or '').strip()
+            email = (row.get('email') or '').strip()
+            channel = (row.get('channel') or 'sms').strip()
+            county_code = (row.get('county_code') or '').strip()
+            sub_county_name = (row.get('sub_county_name') or '').strip()
+
+            # Normalize phone to E.164
+            phone = BroadcastRecipient.normalize_phone(phone)
+
+            if not phone and not email:
+                errors.append(f"Row {row_num}: 'phone' or 'email' is required.")
+                continue
+
+            # Resolve county by code first, then by name
+            county = None
+            if county_code:
+                county = County.objects.filter(code__iexact=county_code).first()
+                if not county:
+                    county = County.objects.filter(name__iexact=county_code).first()
+            if not county:
+                errors.append(f"Row {row_num}: County '{county_code}' not found — skipping.")
+                continue
+
+            # Resolve sub-county by name within the matched county
+            sub_county = None
+            if sub_county_name:
+                sub_county = SubCounty.objects.filter(county=county, name__iexact=sub_county_name).first()
+
+            # Skip duplicates: same phone+channel or same email+channel
+            if phone and BroadcastRecipient.objects.filter(phone=phone, channel=channel).exists():
+                skipped_count += 1
+                continue
+            if email and not phone and BroadcastRecipient.objects.filter(email=email, channel=channel).exists():
+                skipped_count += 1
+                continue
+
+            try:
+                BroadcastRecipient.objects.create(
+                    name=name,
+                    phone=phone,
+                    email=email or None,
+                    channel=channel,
+                    county=county,
+                    sub_county=sub_county,
+                )
+                created_count += 1
+            except Exception as exc:
+                errors.append(f"Row {row_num}: Could not create record — {exc}")
+
+        return Response({"created": created_count, "skipped": skipped_count, "errors": errors})
+
 
 class WeatherObservationViewSet(viewsets.ModelViewSet):
     serializer_class = WeatherObservationSerializer
@@ -1055,6 +1330,39 @@ class AnnotatedZoneViewSet(viewsets.ModelViewSet):
 
 
 # ── Public (unauthenticated) endpoints ───────────────────────────────────────
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_counties(request):
+    """Public endpoint — returns all active counties (no auth required)."""
+    counties = County.objects.filter(is_active=True).values("id", "name", "code").order_by("name")
+    return Response(list(counties))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def sensor_summary(request):
+    """
+    Returns the latest WeatherObservation per county, with county centroid
+    coordinates for sensor dot display on the map.
+    """
+    from django.db.models import Max
+    # Get the latest observation ID per county
+    latest_ids = (
+        WeatherObservation.objects
+        .values("county_id")
+        .annotate(latest_id=Max("id"))
+        .values_list("latest_id", flat=True)
+    )
+    obs = (
+        WeatherObservation.objects
+        .filter(id__in=list(latest_ids))
+        .select_related("county")
+        .order_by("county__name")
+    )
+    from .serializers import WeatherObservationSerializer
+    return Response(WeatherObservationSerializer(obs, many=True).data)
+
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
@@ -1112,3 +1420,179 @@ def public_cameras(request):
     """Return camera feeds marked as public — used by /public portal."""
     feeds = CameraFeed.objects.filter(is_public=True, status="online").select_related("county")
     return Response(CameraFeedSerializer(feeds, many=True).data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_active_alerts(request):
+    alerts = FloodAlert.objects.filter(status='active').select_related('county').order_by('-created_at')[:20]
+    data = [{'id': a.id, 'title': a.title, 'severity': a.severity, 'county': a.county.name, 'created_at': a.created_at.isoformat()} for a in alerts]
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def intel_summary(request):
+    from django.utils import timezone
+    from datetime import timedelta
+    county_id = request.query_params.get('county')
+    since = timezone.now() - timedelta(hours=6)
+    qs = SocialIntelItem.objects.filter(ingested_at__gte=since)
+    if county_id:
+        qs = qs.filter(county_id=county_id)
+    total = qs.count()
+    urgent = qs.filter(sentiment='urgent').count()
+    county = County.objects.filter(id=county_id).first() if county_id else None
+    return Response({'total': total, 'urgent': urgent, 'county_name': county.name if county else None, 'hours': 6})
+
+
+# ── Public CAP feed ───────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def cap_feed(request, alert_id=None):
+    """Generate CAP 1.2 XML for an alert or all active alerts."""
+    from django.utils import timezone as tz
+    from xml.etree.ElementTree import Element, SubElement, tostring
+    from xml.dom import minidom
+
+    if alert_id:
+        alerts = FloodAlert.objects.filter(id=alert_id, status='active').select_related('county')
+    else:
+        alerts = FloodAlert.objects.filter(status='active').select_related('county').order_by('-created_at')[:10]
+
+    root = Element('alert', xmlns='urn:oasis:names:tc:emergency:cap:1.2')
+
+    identifier = SubElement(root, 'identifier')
+    identifier.text = f'crisislens-{tz.now().strftime("%Y%m%d%H%M%S")}'
+
+    sender = SubElement(root, 'sender')
+    sender.text = 'crisislens@gok.go.ke'
+
+    sent = SubElement(root, 'sent')
+    sent.text = tz.now().isoformat()
+
+    status_el = SubElement(root, 'status')
+    status_el.text = 'Actual'
+
+    msg_type = SubElement(root, 'msgType')
+    msg_type.text = 'Alert'
+
+    scope = SubElement(root, 'scope')
+    scope.text = 'Public'
+
+    for alert in alerts:
+        info = SubElement(root, 'info')
+
+        language = SubElement(info, 'language')
+        language.text = 'en-KE'
+
+        cat = SubElement(info, 'category')
+        cat.text = 'Met'
+
+        event = SubElement(info, 'event')
+        event.text = 'FloodAlert'
+
+        urgency = SubElement(info, 'urgency')
+        urgency.text = 'Immediate' if alert.severity in ['critical', 'high'] else 'Expected'
+
+        severity_el = SubElement(info, 'severity')
+        sev_map = {'critical': 'Extreme', 'high': 'Severe', 'medium': 'Moderate', 'low': 'Minor'}
+        severity_el.text = sev_map.get(alert.severity, 'Unknown')
+
+        certainty = SubElement(info, 'certainty')
+        certainty.text = 'Observed'
+
+        headline = SubElement(info, 'headline')
+        headline.text = alert.title
+
+        description = SubElement(info, 'description')
+        description.text = alert.description
+
+        area = SubElement(info, 'area')
+        area_desc = SubElement(area, 'areaDesc')
+        area_desc.text = alert.county.name
+
+    xml_str = minidom.parseString(tostring(root, encoding='unicode')).toprettyxml(indent='  ')
+    return HttpResponse(xml_str, content_type='application/xml')
+
+
+# ── Public alert subscription ─────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def public_subscribe(request):
+    from api.models import AlertSubscription
+    phone = BroadcastRecipient.normalize_phone(request.data.get('phone', '').strip())
+    email = request.data.get('email', '').strip()
+    channel = request.data.get('channel', 'sms')
+    county_id = request.data.get('county') or None
+
+    if not phone and not email:
+        return Response({'detail': 'Phone or email required.'}, status=400)
+
+    # Record in AlertSubscription (notification tracking)
+    sub, created = AlertSubscription.objects.get_or_create(
+        phone=phone, email=email, county_id=county_id,
+        defaults={'channel': channel}
+    )
+
+    # Also add to BroadcastRecipient so they appear in Contacts
+    if county_id:
+        county = County.objects.filter(id=county_id).first()
+        if county:
+            lookup = {}
+            if phone:
+                lookup = {'phone': phone, 'channel': channel}
+            elif email:
+                lookup = {'email': email, 'channel': channel}
+            if lookup:
+                BroadcastRecipient.objects.get_or_create(
+                    **lookup,
+                    defaults={
+                        'name': email.split('@')[0] if email else phone,
+                        'phone': phone,
+                        'email': email,
+                        'channel': channel,
+                        'county': county,
+                    }
+                )
+
+    return Response({'subscribed': created, 'detail': 'Subscription confirmed.' if created else 'Already subscribed.'})
+
+
+# ── API Key management ────────────────────────────────────────────────────────
+
+class APIKeyViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        from rest_framework import serializers
+
+        class APIKeySerializer(serializers.ModelSerializer):
+            class Meta:
+                from api.models import APIKey
+                model = APIKey
+                fields = ['id', 'name', 'key', 'is_active', 'last_used', 'created_at']
+                read_only_fields = ['key', 'last_used', 'created_at']
+
+        return APIKeySerializer
+
+    def get_queryset(self):
+        from api.models import APIKey
+        return APIKey.objects.filter(user=self.request.user)
+
+    def perform_create(self, request, *args, **kwargs):
+        pass
+
+    def create(self, request, *args, **kwargs):
+        from api.models import APIKey
+        name = request.data.get('name', 'My API Key')
+        key_obj = APIKey.generate(request.user, name)
+        return Response({'id': key_obj.id, 'name': key_obj.name, 'key': key_obj.key, 'created_at': key_obj.created_at.isoformat()}, status=201)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_active = False
+        instance.save()
+        return Response(status=204)

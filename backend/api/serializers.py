@@ -350,11 +350,14 @@ class SocialIntelItemSerializer(serializers.ModelSerializer):
 
 class WeatherObservationSerializer(serializers.ModelSerializer):
     county_name = serializers.CharField(source="county.name", read_only=True)
+    centroid_lat = serializers.FloatField(source="county.centroid_lat", read_only=True)
+    centroid_lon = serializers.FloatField(source="county.centroid_lon", read_only=True)
 
     class Meta:
         model = WeatherObservation
         fields = [
-            "id", "county", "county_name", "station_id", "station_name",
+            "id", "county", "county_name", "centroid_lat", "centroid_lon",
+            "station_id", "station_name",
             "rainfall_mm", "temperature_c", "humidity_pct",
             "wind_speed_kmh", "river_level_cm",
             "source", "observed_at", "ingested_at",

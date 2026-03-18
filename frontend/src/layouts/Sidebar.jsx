@@ -3,15 +3,15 @@ import { useLocation, Link } from 'react-router-dom';
 import {
     Map, LayoutDashboard, Bell, FileText, Settings, Shield,
     X, ChevronsRight, ChevronsLeft, Activity, BrainCircuit, LogOut,
-    Camera, Radio, AlertCircle, Send, Globe,
+    Camera, Radio, AlertCircle, Send, Globe, Users,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 /* Role → allowed paths */
 const ROLE_PATHS = {
-    super_admin:    ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/cameras', '/intel', '/reports', '/crisis-ai', '/admin', '/settings'],
-    national_ops:   ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/cameras', '/intel', '/reports', '/crisis-ai', '/settings'],
-    county_officer: ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/cameras', '/crisis-ai', '/settings'],
+    super_admin:    ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/contacts', '/cameras', '/admin/cameras', '/intel', '/reports', '/crisis-ai', '/admin', '/settings'],
+    national_ops:   ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/contacts', '/cameras', '/intel', '/reports', '/crisis-ai', '/settings'],
+    county_officer: ['/map', '/dashboard', '/alerts', '/incidents', '/broadcasts', '/contacts', '/cameras', '/crisis-ai', '/settings'],
     responder:      ['/map', '/dashboard', '/alerts', '/incidents', '/cameras', '/crisis-ai', '/settings'],
     analyst:        ['/map', '/dashboard', '/reports', '/intel', '/crisis-ai', '/settings'],
 };
@@ -22,7 +22,9 @@ const ALL_NAV = [
     { name: 'Alerts',      icon: Bell,             path: '/alerts' },
     { name: 'Incidents',   icon: AlertCircle,      path: '/incidents' },
     { name: 'Broadcasts',  icon: Send,             path: '/broadcasts' },
+    { name: 'Contacts',    icon: Users,            path: '/contacts' },
     { name: 'Cameras',     icon: Camera,           path: '/cameras' },
+    { name: 'Cam Management', icon: Settings,      path: '/admin/cameras' },
     { name: 'Social Intel',icon: Radio,            path: '/intel' },
     { name: 'Reports',     icon: FileText,         path: '/reports' },
     { name: 'Crisis AI',   icon: BrainCircuit,     path: '/crisis-ai' },

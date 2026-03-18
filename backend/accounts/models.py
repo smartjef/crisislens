@@ -49,6 +49,7 @@ class User(AbstractUser):
     )
     phone        = models.CharField(max_length=20, blank=True)
     organization = models.CharField(max_length=100, blank=True)
+    password_changed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name        = "User"
@@ -65,3 +66,41 @@ class User(AbstractUser):
     @property
     def is_national(self) -> bool:
         return self.role in {"national_ops", "super_admin"} or self.is_superuser
+
+    @property
+    def totp_enabled(self) -> bool:
+        return hasattr(self, 'totp_device') and self.totp_device.is_active
+
+
+class TOTPDevice(models.Model):
+    user = models.OneToOneField(
+        'accounts.User', on_delete=models.CASCADE, related_name='totp_device'
+    )
+    secret = models.CharField(max_length=64)  # base32 pyotp secret
+    is_active = models.BooleanField(default=False)
+    backup_codes = models.JSONField(default=list)  # list of 8-char codes
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def verify_code(self, code: str) -> bool:
+        import pyotp
+        if not code:
+            return False
+        # Check TOTP (±1 window = 90s tolerance)
+        totp = pyotp.TOTP(self.secret)
+        if totp.verify(code.strip(), valid_window=1):
+            return True
+        # Check backup codes
+        if code.strip() in self.backup_codes:
+            self.backup_codes = [c for c in self.backup_codes if c != code.strip()]
+            self.save(update_fields=['backup_codes'])
+            return True
+        return False
+
+    def get_provisioning_uri(self, email: str) -> str:
+        import pyotp
+        return pyotp.TOTP(self.secret).provisioning_uri(
+            name=email, issuer_name='CrisisLens GOK'
+        )
+
+    def __str__(self):
+        return f"TOTP({self.user.email}, active={self.is_active})"

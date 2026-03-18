@@ -14,6 +14,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Camera,
+  Check,
   ChevronRight,
   Clock,
   ExternalLink,
@@ -229,6 +230,121 @@ function EATClock() {
   );
 }
 
+// ── Subscribe Section ─────────────────────────────────────────────────────────
+function SubscribeSection({ counties }) {
+  const [form, setForm] = useState({ phone: '', email: '', channels: ['sms'], county: '' });
+  const [status, setStatus] = useState(null); // null | 'loading' | 'success' | 'already' | 'error'
+
+  const toggleChannel = (ch) => {
+    setForm(p => ({
+      ...p,
+      channels: p.channels.includes(ch) ? p.channels.filter(c => c !== ch) : [...p.channels, ch],
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (form.channels.length === 0) return;
+    setStatus('loading');
+    try {
+      const results = await Promise.all(
+        form.channels.map(ch =>
+          fetch(`${API_BASE}/api/public/subscribe/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: form.phone, email: form.email, channel: ch, county: form.county }),
+          }).then(r => r.json())
+        )
+      );
+      const anyNew = results.some(d => d.subscribed);
+      setStatus(anyNew ? 'success' : 'already');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  const CH_BTN = (ch, label) => {
+    const active = form.channels.includes(ch);
+    return (
+      <button
+        key={ch}
+        type="button"
+        onClick={() => toggleChannel(ch)}
+        className={`flex-1 py-1 rounded text-[10px] font-mono uppercase tracking-widest border transition-colors ${
+          active
+            ? 'bg-cyan-600 border-cyan-600 text-white'
+            : 'bg-transparent border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-cyan-600 hover:text-cyan-500'
+        }`}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  return (
+    <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 px-3 py-3">
+      <p className="text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1">Early Warning Alerts</p>
+      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Get Notified Instantly</p>
+      <p className="text-[10px] text-slate-500 mb-3 leading-snug">Subscribe to receive flood alerts for your county via SMS or email.</p>
+
+      {status === 'success' ? (
+        <div className="flex flex-col items-center gap-2 py-3">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+            <Check size={14} className="text-emerald-400" />
+          </div>
+          <p className="text-xs text-emerald-400 font-mono">Subscribed successfully!</p>
+        </div>
+      ) : status === 'already' ? (
+        <div className="flex flex-col items-center gap-2 py-3">
+          <p className="text-xs text-amber-400 font-mono">Already subscribed.</p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={form.phone}
+              onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+              placeholder="+254712345678"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-cyan-600"
+            />
+            <input
+              type="email"
+              value={form.email}
+              onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+              placeholder="email@example.com"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-cyan-600"
+            />
+          </div>
+          {/* Channel toggles */}
+          <div>
+            <p className="text-[9px] font-mono uppercase tracking-widest text-slate-500 mb-1">Channels</p>
+            <div className="flex gap-1.5">
+              {CH_BTN('sms', 'SMS')}
+              {CH_BTN('email', 'Email')}
+            </div>
+          </div>
+          <select
+            value={form.county}
+            onChange={e => setForm(p => ({ ...p, county: e.target.value }))}
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-slate-600 dark:text-slate-400 focus:outline-none"
+          >
+            <option value="">All Counties</option>
+            {counties.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          {status === 'error' && <p className="text-[10px] text-red-400">Subscription failed. Please try again.</p>}
+          <button
+            type="submit"
+            disabled={status === 'loading' || (!form.phone && !form.email) || form.channels.length === 0}
+            className="w-full h-8 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition-colors disabled:opacity-40"
+          >
+            {status === 'loading' ? 'Subscribing...' : 'Subscribe to Alerts'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function PublicPortal() {
   const { theme } = useDarkMode();
@@ -236,6 +352,7 @@ export default function PublicPortal() {
 
   const [data, setData] = useState(null);
   const [cameras, setCameras] = useState([]);
+  const [counties, setCounties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [weather, setWeather] = useState([]);
@@ -265,10 +382,13 @@ export default function PublicPortal() {
     Promise.all([
       axios.get(`${API_BASE}/api/public/summary/`),
       axios.get(`${API_BASE}/api/public/cameras/`),
+      axios.get(`${API_BASE}/api/public/counties/`).catch(() => ({ data: [] })),
     ])
-      .then(([sumRes, camRes]) => {
+      .then(([sumRes, camRes, coRes]) => {
         setData(sumRes.data);
         setCameras(camRes.data || []);
+        const coData = coRes.data;
+        setCounties(coData.results || coData || []);
         setLastUpdated(new Date());
       })
       .catch(() => {})
@@ -431,6 +551,7 @@ export default function PublicPortal() {
             )}
           </div>
 
+          <SubscribeSection counties={counties} />
           <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 px-3 py-2 text-[9px] font-mono text-slate-400 text-center">
             Auto-refreshes every 60 s · Call 999 for emergencies
           </div>

@@ -51,28 +51,64 @@ const STATUS_BADGE = {
 };
 
 // ── Broadcast history row ─────────────────────────────────────────────────────
-function BroadcastRow({ broadcast }) {
+function BroadcastRow({ broadcast, selected, onSelect }) {
   const ch = CHANNEL_INFO[broadcast.channel];
   return (
-    <div className="rounded border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised px-4 py-3 flex items-center gap-4">
-      <span className={`text-[9px] font-mono uppercase px-2 py-1 rounded border ${STATUS_BADGE[broadcast.status]}`}>
-        {broadcast.status}
-      </span>
-      <span className={`text-[10px] font-mono uppercase ${ch?.color?.split(" ")[2] || "text-slate-400"}`}>
-        {ch?.label || broadcast.channel}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-slate-700 dark:text-slate-300 truncate">{broadcast.message.slice(0, 80)}</p>
-        <p className="text-[9px] font-mono text-slate-600">
-          {(broadcast.counties_list || []).map((c) => c.name).join(", ")}
-        </p>
+    <div
+      className={`rounded border bg-white dark:bg-surface-raised px-4 py-3 cursor-pointer transition-colors
+        ${selected ? 'border-flood-600 dark:border-flood-600' : 'border-slate-200 dark:border-surface-border hover:border-slate-400 dark:hover:border-slate-500'}`}
+      onClick={() => onSelect(broadcast.id)}
+    >
+      <div className="flex items-center gap-4">
+        <span className={`text-[9px] font-mono uppercase px-2 py-1 rounded border ${STATUS_BADGE[broadcast.status]}`}>
+          {broadcast.status}
+        </span>
+        <span className={`text-[10px] font-mono uppercase ${ch?.color?.split(" ")[2] || "text-slate-400"}`}>
+          {ch?.label || broadcast.channel}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] text-slate-700 dark:text-slate-300 truncate">{broadcast.message.slice(0, 80)}</p>
+          <p className="text-[9px] font-mono text-slate-600">
+            {(broadcast.counties_list || []).map((c) => c.name).join(", ")}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[11px] font-mono text-slate-700 dark:text-slate-300">{broadcast.delivered_count}/{broadcast.recipient_count}</p>
+          <p className="text-[9px] font-mono text-slate-600">
+            {broadcast.sent_at ? new Date(broadcast.sent_at).toLocaleString("en-KE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+          </p>
+        </div>
       </div>
-      <div className="text-right shrink-0">
-        <p className="text-[11px] font-mono text-slate-700 dark:text-slate-300">{broadcast.delivered_count}/{broadcast.recipient_count}</p>
-        <p className="text-[9px] font-mono text-slate-600">
-          {broadcast.sent_at ? new Date(broadcast.sent_at).toLocaleString("en-KE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
-        </p>
-      </div>
+
+      {selected && (
+        <div className="mt-3 pt-3 border-t border-surface-border grid grid-cols-3 gap-4">
+          <div className="text-center">
+            <p className="text-lg font-mono font-bold text-slate-200">{broadcast.recipient_count}</p>
+            <p className="text-[9px] font-mono uppercase text-slate-600 tracking-widest">Recipients</p>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-mono font-bold text-emerald-400">{broadcast.delivered_count}</p>
+            <p className="text-[9px] font-mono uppercase text-slate-600 tracking-widest">Delivered</p>
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-mono font-bold text-red-400">{broadcast.failed_count}</p>
+            <p className="text-[9px] font-mono uppercase text-slate-600 tracking-widest">Failed</p>
+          </div>
+          {broadcast.recipient_count > 0 && (
+            <div className="col-span-3">
+              <div className="w-full h-1.5 bg-surface rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-all"
+                  style={{ width: `${Math.round((broadcast.delivered_count / broadcast.recipient_count) * 100)}%` }}
+                />
+              </div>
+              <p className="text-[9px] font-mono text-slate-600 mt-1 text-right">
+                {Math.round((broadcast.delivered_count / broadcast.recipient_count) * 100)}% delivery rate
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -283,10 +319,15 @@ function BroadcastWizard({ counties, onClose, onSent }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function BroadcastPage() {
-  const [broadcasts, setBroadcasts] = useState([]);
-  const [counties, setCounties]     = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [wizardOpen, setWizardOpen] = useState(false);
+  const [broadcasts, setBroadcasts]         = useState([]);
+  const [counties, setCounties]             = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [wizardOpen, setWizardOpen]         = useState(false);
+  const [selectedBroadcast, setSelectedBroadcast] = useState(null);
+
+  const handleSelectBroadcast = (id) => {
+    setSelectedBroadcast((prev) => (prev === id ? null : id));
+  };
 
   const load = () => {
     setLoading(true);
@@ -356,7 +397,14 @@ export default function BroadcastPage() {
             <p className="text-sm">No broadcasts yet.</p>
           </div>
         ) : (
-          broadcasts.map((b) => <BroadcastRow key={b.id} broadcast={b} />)
+          broadcasts.map((b) => (
+            <BroadcastRow
+              key={b.id}
+              broadcast={b}
+              selected={selectedBroadcast === b.id}
+              onSelect={handleSelectBroadcast}
+            />
+          ))
         )}
       </div>
 

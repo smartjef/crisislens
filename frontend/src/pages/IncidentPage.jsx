@@ -19,6 +19,8 @@ import {
 import client from "../api/client";
 import { useAlertStore } from "../store/useAlertStore";
 
+const DETAIL_TABS = ['overview', 'timeline', 'resources', 'broadcasts'];
+
 const SEVERITY_STYLES = {
   critical: "text-red-600 dark:text-red-400    border-red-400 dark:border-red-700    bg-red-50  dark:bg-red-900/30",
   high:     "text-orange-600 dark:text-orange-400 border-orange-400 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/30",
@@ -175,18 +177,107 @@ function CreateIncidentModal({ counties, onClose, onCreated }) {
   );
 }
 
+// ── Add Update Form ────────────────────────────────────────────────────────────
+function AddUpdateForm({ incidentId, onAdded }) {
+  const [body, setBody] = useState('');
+  const [saving, setSaving] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!body.trim()) return;
+    setSaving(true);
+    try {
+      await client.post(`/api/incidents/${incidentId}/add_update/`, { body });
+      setBody('');
+      onAdded();
+    } catch {}
+    setSaving(false);
+  };
+  return (
+    <form onSubmit={submit} className="flex gap-2">
+      <input
+        value={body}
+        onChange={e => setBody(e.target.value)}
+        placeholder="Add timeline update..."
+        className="flex-1 bg-surface border border-surface-border rounded px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-flood-600"
+      />
+      <button type="submit" disabled={saving || !body.trim()} className="h-9 px-3 rounded bg-flood-600 hover:bg-flood-500 text-white text-xs disabled:opacity-40 transition-colors">
+        {saving ? '...' : 'Post'}
+      </button>
+    </form>
+  );
+}
+
+// ── Resources Tab ──────────────────────────────────────────────────────────────
+function ResourcesTab({ incidentId }) {
+  const [units, setUnits] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    client.get(`/api/field-units/?incident=${incidentId}`).then(r => {
+      setUnits(r.data.results || r.data || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [incidentId]);
+
+  const TYPE_LABELS = { vehicle: '🚗', boat: '⛵', drone: '🚁', foot: '🚶', helicopter: '🚁' };
+
+  if (loading) return <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-12 rounded border border-surface-border bg-surface animate-pulse" />)}</div>;
+  if (units.length === 0) return <div className="text-center py-10"><p className="text-xs font-mono text-slate-600">No field units assigned</p></div>;
+
+  return (
+    <div className="space-y-2">
+      {units.map(u => (
+        <div key={u.id} className="flex items-center gap-3 p-3 rounded border border-surface-border bg-surface">
+          <span className="text-base">{TYPE_LABELS[u.unit_type] || '🚗'}</span>
+          <div className="flex-1">
+            <p className="text-xs font-medium text-slate-300">{u.name}</p>
+            <p className="text-[9px] font-mono text-slate-600">{u.county_name}</p>
+          </div>
+          <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border ${u.status === 'active' ? 'text-emerald-400 border-emerald-800 bg-emerald-900/20' : 'text-slate-500 border-slate-700'}`}>{u.status}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Broadcasts Tab ─────────────────────────────────────────────────────────────
+function BroadcastsTab({ incidentId }) {
+  const [bcs, setBcs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    client.get(`/api/broadcasts/?incident=${incidentId}`).then(r => {
+      setBcs(r.data.results || r.data || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [incidentId]);
+
+  if (loading) return <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-12 rounded border border-surface-border bg-surface animate-pulse" />)}</div>;
+  if (bcs.length === 0) return <div className="text-center py-10"><p className="text-xs font-mono text-slate-600">No broadcasts for this incident</p></div>;
+
+  return (
+    <div className="space-y-2">
+      {bcs.map(b => (
+        <div key={b.id} className="p-3 rounded border border-surface-border bg-surface space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border text-cyan-400 border-cyan-800 bg-cyan-900/20">{b.channel}</span>
+            <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border ${b.status === 'sent' ? 'text-emerald-400 border-emerald-800' : b.status === 'failed' ? 'text-red-400 border-red-800' : 'text-slate-400 border-slate-700'}`}>{b.status}</span>
+            <span className="ml-auto text-[9px] font-mono text-slate-600">{b.recipient_count} recipients</span>
+          </div>
+          <p className="text-[10px] text-slate-400 truncate">{b.message?.slice(0, 80)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Detail drawer ─────────────────────────────────────────────────────────────
 function IncidentDetailDrawer({ incident, onClose, onUpdated }) {
+  const [detailTab, setDetailTab] = useState('overview');
   const [updates, setUpdates] = useState(incident.updates || []);
-  const [newUpdate, setNewUpdate] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const postUpdate = () => {
-    if (!newUpdate.trim()) return;
-    setSaving(true);
-    client.post(`/api/incidents/${incident.id}/add_update/`, { body: newUpdate })
-      .then((res) => { setUpdates((u) => [...u, res.data]); setNewUpdate(""); })
-      .finally(() => setSaving(false));
+  const refreshUpdates = () => {
+    client.get(`/api/incidents/${incident.id}/`)
+      .then(r => setUpdates(r.data.updates || []))
+      .catch(() => {});
   };
 
   const changeStatus = (newStatus) => {
@@ -199,70 +290,123 @@ function IncidentDetailDrawer({ incident, onClose, onUpdated }) {
       .catch(() => {});
   };
 
+  const STATUS_NEXT = { open: 'active', active: 'contained', contained: 'closed' };
+  const STATUS_NEXT_LABEL = { open: 'ACTIVE', active: 'CONTAINED', contained: 'CLOSED' };
+
+  // Keep updates in sync when incident prop changes (e.g. after status change)
+  useEffect(() => {
+    setUpdates(incident.updates || []);
+  }, [incident.id]);
+
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/60" onClick={onClose} />
-      <div className="w-full max-w-md bg-slate-50 dark:bg-surface border-l border-slate-200 dark:border-surface-border flex flex-col h-full overflow-hidden">
+      <div className="w-full max-w-md bg-surface border-l border-surface-border flex flex-col h-full overflow-hidden">
+
         {/* Header */}
-        <div className="flex items-start justify-between px-4 py-3 border-b border-slate-200 dark:border-surface-border shrink-0">
+        <div className="flex items-start justify-between px-4 py-3 border-b border-surface-border shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-base">{TYPE_ICONS[incident.incident_type]}</span>
               <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border ${SEVERITY_STYLES[incident.severity]}`}>
                 {incident.severity}
               </span>
+              <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">{incident.status}</span>
             </div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{incident.title}</p>
+            <p className="text-sm font-semibold text-slate-200">{incident.title}</p>
             <p className="text-[10px] font-mono text-slate-500">{incident.county_name} · #{incident.id}</p>
           </div>
           <button onClick={onClose}><X className="w-4 h-4 text-slate-400" /></button>
         </div>
 
-        {/* Meta */}
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-surface-border grid grid-cols-2 gap-3 shrink-0">
-          <div>
-            <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase">Status</p>
-            <p className="text-[11px] text-slate-700 dark:text-slate-300 font-mono uppercase mt-0.5">{incident.status}</p>
-          </div>
-          <div>
-            <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase">Affected</p>
-            <p className="text-[11px] text-slate-700 dark:text-slate-300 font-mono mt-0.5">{(incident.affected_population || 0).toLocaleString()} persons</p>
-          </div>
-          <div className="col-span-2">
-            <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase">Description</p>
-            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{incident.description || "—"}</p>
-          </div>
-        </div>
-
-        {/* Status transitions */}
-        <div className="px-4 py-2 border-b border-slate-200 dark:border-surface-border flex gap-2 flex-wrap shrink-0">
-          {STATUS_COLS.filter((s) => s.key !== incident.status).map((s) => (
-            <button key={s.key} onClick={() => changeStatus(s.key)}
-              className={`text-[9px] font-mono uppercase px-2 py-1 rounded border transition-colors ${s.color} hover:bg-white/5`}>
-              → {s.label}
+        {/* Tab bar */}
+        <div className="flex gap-0 border-b border-surface-border px-4 shrink-0">
+          {DETAIL_TABS.map(tab => (
+            <button key={tab} onClick={() => setDetailTab(tab)}
+              className={`h-9 px-4 text-[9px] font-mono uppercase tracking-widest border-b-2 transition-colors -mb-px
+                ${detailTab === tab ? 'border-flood-600 text-flood-400' : 'border-transparent text-slate-600 hover:text-slate-400'}`}>
+              {tab}
             </button>
           ))}
         </div>
 
-        {/* Timeline */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-          <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase tracking-widest">Timeline</p>
-          {updates.length === 0 ? (
-            <p className="text-[11px] text-slate-600">No updates yet.</p>
-          ) : (
-            updates.map((u) => <TimelineEntry key={u.id} update={u} />)
-          )}
-        </div>
+        {/* Tab content */}
+        {detailTab === 'overview' && (
+          <div className="p-4 space-y-4 overflow-y-auto flex-1">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">{TYPE_ICONS[incident.incident_type]}</span>
+              <div>
+                <p className="text-sm font-semibold text-slate-200">{incident.title}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border ${SEVERITY_STYLES[incident.severity]}`}>
+                    {incident.severity}
+                  </span>
+                  <span className="flex items-center gap-1 text-[9px] font-mono text-slate-500">
+                    <MapPin className="w-3 h-3" />{incident.county_name}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {incident.description && (
+              <div className="p-3 rounded border border-surface-border bg-surface">
+                <p className="text-xs text-slate-400 leading-relaxed">{incident.description}</p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded border border-surface-border bg-surface">
+                <p className="text-[9px] font-mono uppercase text-slate-600 tracking-widest mb-1">Affected Pop.</p>
+                <p className="text-lg font-mono font-bold text-slate-200">{incident.affected_population?.toLocaleString() || '—'}</p>
+              </div>
+              <div className="p-3 rounded border border-surface-border bg-surface">
+                <p className="text-[9px] font-mono uppercase text-slate-600 tracking-widest mb-1">Type</p>
+                <p className="text-sm font-mono text-slate-300 capitalize">{incident.incident_type}</p>
+              </div>
+            </div>
+            {incident.status !== 'closed' && (
+              <div>
+                <p className="text-[9px] font-mono uppercase text-slate-600 tracking-widest mb-2">Advance Status</p>
+                <button
+                  onClick={() => changeStatus(STATUS_NEXT[incident.status])}
+                  className="w-full h-9 rounded border border-flood-800 text-flood-400 text-xs font-mono uppercase tracking-widest hover:bg-flood-900/20 transition-colors"
+                >
+                  Move to {STATUS_NEXT_LABEL[incident.status]}
+                </button>
+              </div>
+            )}
+            <div className="text-[9px] font-mono text-slate-700 space-y-0.5">
+              <p>Created: {new Date(incident.created_at).toLocaleString('en-KE')}</p>
+              <p>Updated: {new Date(incident.updated_at).toLocaleString('en-KE')}</p>
+            </div>
+          </div>
+        )}
 
-        {/* Add update */}
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-surface-border shrink-0 space-y-2">
-          <textarea rows={2} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-surface-border rounded px-3 py-2 text-sm text-slate-800 dark:text-slate-200 resize-none focus:outline-none focus:border-flood-600"
-            placeholder="Add situation update…" value={newUpdate} onChange={(e) => setNewUpdate(e.target.value)} />
-          <button onClick={postUpdate} disabled={saving || !newUpdate.trim()}
-            className="w-full py-2 text-sm font-mono bg-flood-600 text-white rounded hover:bg-flood-500 disabled:opacity-50">
-            {saving ? "Posting…" : "Post Update"}
-          </button>
-        </div>
+        {detailTab === 'timeline' && (
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {updates.length > 0 ? updates.map((u, i) => (
+                <TimelineEntry key={u.id || i} update={u} />
+              )) : (
+                <p className="text-xs font-mono text-slate-600 text-center py-8">No timeline entries yet</p>
+              )}
+            </div>
+            <div className="p-4 border-t border-surface-border shrink-0">
+              <AddUpdateForm incidentId={incident.id} onAdded={refreshUpdates} />
+            </div>
+          </div>
+        )}
+
+        {detailTab === 'resources' && (
+          <div className="p-4 flex-1 overflow-y-auto">
+            <ResourcesTab incidentId={incident.id} />
+          </div>
+        )}
+
+        {detailTab === 'broadcasts' && (
+          <div className="p-4 flex-1 overflow-y-auto">
+            <BroadcastsTab incidentId={incident.id} />
+          </div>
+        )}
+
       </div>
     </div>
   );

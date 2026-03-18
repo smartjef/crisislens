@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, User, Bell, Monitor, Moon, Sun, Lock, Save, Landmark } from 'lucide-react';
+import { Settings, Shield, User, Bell, Monitor, Moon, Sun, Lock, Save, Landmark, Smartphone, Check, X, RefreshCw, Copy, Eye, EyeOff } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useAuthStore } from '../store/authStore';
 import { useAlertStore } from '../store/useAlertStore';
 import { useDarkMode } from '../hooks/useDarkMode';
@@ -47,6 +48,64 @@ export default function SettingsPage() {
     const [passwordErrors, setPasswordErrors] = useState({});
     const [notifPref, setNotifPref] = useState(() => localStorage.getItem('cl-notif-pref') || 'all');
 
+    /* MFA / TOTP */
+    const [totpEnabled,    setTotpEnabled]    = useState(false);
+    const [totpEnrolling,  setTotpEnrolling]  = useState(false);
+    const [totpUri,        setTotpUri]        = useState('');
+    const [totpSecret,     setTotpSecret]     = useState('');
+    const [totpCode,       setTotpCode]       = useState('');
+    const [totpCodes,      setTotpCodes]      = useState([]); // backup codes after enroll
+    const [totpSubmitting, setTotpSubmitting] = useState(false);
+    const [totpError,      setTotpError]      = useState('');
+    const [showSecret,     setShowSecret]     = useState(false);
+    const [showBackup,     setShowBackup]     = useState(false);
+    const [disableLoading, setDisableLoading] = useState(false);
+
+    /* Check initial TOTP status — GET also pre-generates secret but we only use it if user starts enroll */
+    useEffect(() => {
+        client.get('/api/auth/totp/setup/')
+            .then(r => { setTotpEnabled(!!r.data.is_active); })
+            .catch(() => { setTotpEnabled(false); });
+    }, []);
+
+    const startEnroll = async () => {
+        setTotpEnrolling(true);
+        setTotpError('');
+        try {
+            const { data } = await client.get('/api/auth/totp/setup/');
+            setTotpUri(data.provisioning_uri || data.uri || '');
+            setTotpSecret(data.secret || '');
+        } catch { addToast('Could not start TOTP setup', 'error'); setTotpEnrolling(false); }
+    };
+
+    const cancelEnroll = () => { setTotpEnrolling(false); setTotpUri(''); setTotpSecret(''); setTotpCode(''); setTotpError(''); setTotpCodes([]); };
+
+    const confirmEnroll = async () => {
+        if (totpCode.length < 6) { setTotpError('Enter the 6-digit code from your app'); return; }
+        setTotpSubmitting(true); setTotpError('');
+        try {
+            const { data } = await client.post('/api/auth/totp/setup/', { code: totpCode });
+            setTotpEnabled(true);
+            setTotpCodes(data.backup_codes || []);
+            setTotpCode('');
+            setTotpUri('');
+            addToast('2FA enabled successfully', 'success');
+        } catch (err) {
+            setTotpError(err.response?.data?.error || 'Invalid code');
+        } finally { setTotpSubmitting(false); }
+    };
+
+    const disableTotp = async () => {
+        setDisableLoading(true);
+        try {
+            await client.delete('/api/auth/totp/setup/');
+            setTotpEnabled(false);
+            setTotpCodes([]);
+            cancelEnroll();
+            addToast('2FA disabled', 'success');
+        } catch { addToast('Failed to disable 2FA', 'error'); } finally { setDisableLoading(false); }
+    };
+
     useEffect(() => {
         if (user) setProfileData({ first_name: user.first_name || '', last_name: user.last_name || '', phone: user.phone || '', organization: user.organization || '' });
     }, [user]);
@@ -84,6 +143,18 @@ export default function SettingsPage() {
     if (!user) return null;
 
     const ROLE_LABEL = { super_admin: 'Super Admin', national_ops: 'National Ops', county_officer: 'County Officer', responder: 'Responder', analyst: 'Analyst' };
+
+    /* Password strength */
+    const pw = passwordData.new_password;
+    const pwChecks = [
+        { label: '10+ chars',       ok: pw.length >= 10 },
+        { label: 'Uppercase',       ok: /[A-Z]/.test(pw) },
+        { label: 'Digit',           ok: /[0-9]/.test(pw) },
+        { label: 'Special char',    ok: /[!@#$%^&*(),.?":{}|<>_\-+=/\\[\]`~;\'@#]/.test(pw) },
+    ];
+    const pwScore = pwChecks.filter(c => c.ok).length;
+    const pwStrengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][pwScore];
+    const pwStrengthColor = ['', 'bg-red-500', 'bg-yellow-500', 'bg-blue-500', 'bg-emerald-500'][pwScore];
 
     return (
         <div className="p-4 md:p-5 space-y-4 animate-in fade-in duration-500">
@@ -196,6 +267,25 @@ export default function SettingsPage() {
                                         <input type="password" value={passwordData.new_password}
                                             onChange={e => setPasswordData(p => ({ ...p, new_password: e.target.value }))}
                                             className={passwordErrors.new_password ? INPUT_ERR : INPUT} />
+                                        {pw.length > 0 && (
+                                            <div className="mt-2 space-y-1.5">
+                                                <div className="flex gap-1 h-1">
+                                                    {[0,1,2,3].map(i => (
+                                                        <div key={i} className={`flex-1 rounded-full transition-all duration-300 ${i < pwScore ? pwStrengthColor : 'bg-slate-200 dark:bg-surface-border'}`} />
+                                                    ))}
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex gap-3 flex-wrap">
+                                                        {pwChecks.map(c => (
+                                                            <span key={c.label} className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider ${c.ok ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-600'}`}>
+                                                                {c.ok ? <Check size={9} strokeWidth={3} /> : <X size={9} strokeWidth={3} />} {c.label}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    {pwStrengthLabel && <span className={`text-[9px] font-black uppercase tracking-widest ${pwStrengthColor.replace('bg-', 'text-')}`}>{pwStrengthLabel}</span>}
+                                                </div>
+                                            </div>
+                                        )}
                                     </Field>
                                     <Field label="Confirm Passcode" error={passwordErrors.confirm_password?.[0]}>
                                         <input type="password" value={passwordData.confirm_password}
@@ -210,6 +300,110 @@ export default function SettingsPage() {
                                 </div>
                             </form>
                         </Panel>
+
+                        {/* MFA / TOTP panel */}
+                        <div className="mt-5">
+                        <Panel title="Two-Factor Authentication" icon={Smartphone} id="mfa-sec">
+                            {!totpEnabled && !totpEnrolling && (
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Protect your account with a time-based one-time password (TOTP) app such as Google Authenticator, Authy, or 1Password.</p>
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 px-1.5 py-0.5 rounded-sm">Not Enabled</span>
+                                    </div>
+                                    <Button onClick={startEnroll} className="shrink-0 h-8 px-4 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                        <Smartphone size={11} /> Enable 2FA
+                                    </Button>
+                                </div>
+                            )}
+
+                            {totpEnabled && !totpEnrolling && totpCodes.length === 0 && (
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Two-factor authentication is active. Your account requires a TOTP code at each login.</p>
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 px-1.5 py-0.5 rounded-sm">Active</span>
+                                    </div>
+                                    <Button onClick={disableTotp} disabled={disableLoading} variant="outline" className="shrink-0 h-8 px-4 text-[9px] font-black uppercase tracking-widest text-red-500 border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/10 flex items-center gap-1.5">
+                                        <X size={11} /> {disableLoading ? 'Disabling…' : 'Disable 2FA'}
+                                    </Button>
+                                </div>
+                            )}
+
+                            {/* Backup codes shown after fresh enroll */}
+                            {totpEnabled && totpCodes.length > 0 && (
+                                <div className="space-y-3">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="text-xs font-black text-emerald-500 uppercase tracking-widest mb-0.5">2FA Enabled</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">Save these backup codes securely. Each can be used once if you lose your authenticator.</p>
+                                        </div>
+                                        <button onClick={() => setShowBackup(v => !v)} className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1">
+                                            {showBackup ? <EyeOff size={11} /> : <Eye size={11} />} {showBackup ? 'Hide' : 'Show'}
+                                        </button>
+                                    </div>
+                                    {showBackup && (
+                                        <div className="grid grid-cols-2 gap-1.5 p-3 bg-slate-50 dark:bg-surface border border-slate-200 dark:border-surface-border rounded-sm">
+                                            {totpCodes.map((c, i) => (
+                                                <span key={i} className="font-mono text-xs text-slate-700 dark:text-slate-300 tracking-widest">{c}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button onClick={() => navigator.clipboard?.writeText(totpCodes.join('\n'))} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-200 dark:border-surface-border rounded-sm px-3 py-1.5 transition-all">
+                                            <Copy size={10} /> Copy Codes
+                                        </button>
+                                        <Button onClick={() => setTotpCodes([])} variant="outline" className="h-7 px-4 text-[9px] font-black uppercase tracking-widest">
+                                            Done
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Enroll flow */}
+                            {totpEnrolling && (
+                                <div className="space-y-4">
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Step 1 — Scan QR code</p>
+                                        <div className="flex gap-5 items-start flex-wrap">
+                                            {totpUri && (
+                                                <div className="p-2 bg-white border border-slate-200 dark:border-surface-border rounded-sm shrink-0">
+                                                    <QRCodeSVG value={totpUri} size={140} />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-[160px]">
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Scan with Google Authenticator, Authy, or any TOTP app. Or enter the key manually:</p>
+                                                <div className="flex items-center gap-2">
+                                                    <code className={`text-xs font-mono text-slate-700 dark:text-slate-300 tracking-widest break-all ${showSecret ? '' : 'blur-sm select-none'}`}>{totpSecret}</code>
+                                                    <button onClick={() => setShowSecret(v => !v)} className="shrink-0 text-slate-400 hover:text-slate-600">
+                                                        {showSecret ? <EyeOff size={12} /> : <Eye size={12} />}
+                                                    </button>
+                                                    {showSecret && <button onClick={() => navigator.clipboard?.writeText(totpSecret)} className="shrink-0 text-slate-400 hover:text-slate-600"><Copy size={12} /></button>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Step 2 — Verify code</p>
+                                        <div className="flex gap-2 items-start">
+                                            <div className="flex-1">
+                                                <input
+                                                    type="text" inputMode="numeric" maxLength={6}
+                                                    value={totpCode}
+                                                    onChange={e => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                    placeholder="000000"
+                                                    className={`${INPUT} text-center tracking-[0.4em] font-mono text-lg w-full`}
+                                                />
+                                                {totpError && <p className="text-[9px] text-red-500 font-bold mt-1 uppercase">{totpError}</p>}
+                                            </div>
+                                            <Button onClick={confirmEnroll} disabled={totpSubmitting || totpCode.length < 6} className="h-9 px-5 shrink-0 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                                {totpSubmitting ? <><RefreshCw size={10} className="animate-spin" /> Verifying</> : <><Check size={10} strokeWidth={3} /> Confirm</>}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <button onClick={cancelEnroll} className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 uppercase tracking-widest font-black">Cancel</button>
+                                </div>
+                            )}
+                        </Panel>
+                        </div>
                     </section>
 
                     <section id="pref-sec">

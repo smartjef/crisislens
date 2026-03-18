@@ -27,7 +27,7 @@ export default function Topbar({ onMenuClick }) {
     const { theme, setTheme } = useDarkMode();
     const { user } = useAuthStore();
     const navigate = useNavigate();
-    const { data: alertsData } = useAlerts({ status: 'active' }, { pollInterval: 30000 });
+    const { data: alertsData } = useAlerts({ status: 'active' }, { pollInterval: 60000 });
     const unreadCount = alertsData?.results?.length || 0;
 
     const [notifOpen, setNotifOpen]   = useState(false);

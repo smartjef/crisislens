@@ -20,8 +20,10 @@ import CrisisLensAI from '../pages/CrisisLensAI';
 // Enterprise pages
 import IncidentPage   from '../pages/IncidentPage';
 import BroadcastPage  from '../pages/BroadcastPage';
-import CameraPage     from '../pages/CameraPage';
+import CameraPage       from '../pages/CameraPage';
+import CameraManagement from '../pages/CameraManagement';
 import SocialIntelPage from '../pages/SocialIntelPage';
+import ContactsPage   from '../pages/ContactsPage';
 import PublicPortal   from '../pages/PublicPortal';
 
 export default function AppRouter() {
@@ -68,6 +70,9 @@ export default function AppRouter() {
                     <Route path="/broadcasts"
                         element={<PrivateRoute allowedRoles={['national_ops','county_officer','super_admin']}><BroadcastPage /></PrivateRoute>} />
 
+                    <Route path="/contacts"
+                        element={<PrivateRoute allowedRoles={['super_admin','national_ops','county_officer']}><ContactsPage /></PrivateRoute>} />
+
                     <Route path="/cameras"
                         element={<PrivateRoute><CameraPage /></PrivateRoute>} />
 
@@ -77,6 +82,8 @@ export default function AppRouter() {
                     {/* Admin */}
                     <Route path="/admin"
                         element={<PrivateRoute allowedRoles={['super_admin']}><AdminPage /></PrivateRoute>} />
+                    <Route path="/admin/cameras"
+                        element={<PrivateRoute allowedRoles={['super_admin']}><CameraManagement /></PrivateRoute>} />
                 </Route>
 
                 {/* Catch-all */}
