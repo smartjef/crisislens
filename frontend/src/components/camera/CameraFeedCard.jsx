@@ -7,9 +7,10 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 import Map, { Marker, NavigationControl, ScaleControl } from "react-map-gl/maplibre";
+import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import Hls from "hls.js";
-import { Camera, Maximize2, WifiOff } from "lucide-react";
+import { Camera, Maximize2, Pencil, Trash2, WifiOff } from "lucide-react";
 
 // ── ESRI World Imagery style (no API key, full street-level zoom) ──────────────
 export const ESRI_SATELLITE_STYLE = {
@@ -89,12 +90,15 @@ function SnapshotImg({ src, alt, className = "", refreshSecs = 30 }) {
 }
 
 // ── HLS player ────────────────────────────────────────────────────────────────
-function HLSPlayer({ src, className = "" }) {
+export function HLSPlayer({ src, className = "", onError }) {
   const videoRef = useRef(null);
   useEffect(() => {
     if (!src || !videoRef.current) return;
     if (Hls.isSupported()) {
       const hls = new Hls({ lowLatencyMode: true });
+      hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (data.fatal && onError) onError(data);
+      });
       hls.loadSource(src);
       hls.attachMedia(videoRef.current);
       return () => hls.destroy();
@@ -116,10 +120,9 @@ function LiveTicker() {
 }
 
 // ── Live video overlay — scan line + REC badge + clock ────────────────────────
-function LiveOverlay({ label = "LIVE", isSatellite = false }) {
+export function LiveOverlay({ label = "LIVE", isSatellite = false }) {
   return (
     <>
-      {/* CRT interlace lines */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -127,7 +130,6 @@ function LiveOverlay({ label = "LIVE", isSatellite = false }) {
             "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px)",
         }}
       />
-      {/* Moving scan line */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div
           className="camera-scanline w-full"
@@ -138,20 +140,17 @@ function LiveOverlay({ label = "LIVE", isSatellite = false }) {
           }}
         />
       </div>
-      {/* REC / SAT badge top-left — pointer-events-none so map stays interactive */}
       <div className="absolute top-2 left-2 pointer-events-none flex items-center gap-1.5 bg-black/65 backdrop-blur-sm px-2 py-0.5 rounded-sm camera-signal">
         <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
         <span className="text-white text-[8px] font-mono font-bold tracking-widest uppercase">
           {isSatellite ? "SAT DOWNLINK" : label}
         </span>
       </div>
-      {/* Ticking clock bottom-right */}
       <div className="absolute bottom-2 right-2 pointer-events-none bg-black/65 backdrop-blur-sm px-1.5 py-0.5 rounded-sm">
         <span className="text-[9px] font-mono text-white tabular-nums">
           <LiveTicker />
         </span>
       </div>
-      {/* Signal strength indicator top-right (for satellite) */}
       {isSatellite && (
         <div className="absolute top-2 right-2 pointer-events-none flex items-end gap-0.5 bg-black/65 backdrop-blur-sm px-2 py-1 rounded-sm">
           {[3, 5, 7, 9, 11].map((h, i) => (
@@ -181,7 +180,7 @@ function jitter(v, pct = 0.015) {
   return +(v * (1 + (Math.random() - 0.5) * 2 * pct)).toFixed(2);
 }
 
-function TelemetryTicker({ cameraId }) {
+export function TelemetryTicker({ cameraId }) {
   const base = BASE_TELEMETRY[cameraId] || { wl: 2.0, temp: 24, wind: 10, rh: 75 };
   const [vals, setVals] = useState(base);
 
@@ -212,15 +211,27 @@ function TelemetryTicker({ cameraId }) {
 }
 
 // ── Interactive satellite mini-map (replaces static JPEG for sat/river feeds) ──
-function SatelliteMapView({ lat, lon, zoom = 14, compact = false }) {
+export function SatelliteMapView({ lat, lon, zoom = 14, compact = false }) {
   if (!lat || !lon) return null;
+  const mapRef = useRef(null);
+  
+  // Force resize on mount or when coords change
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.getMap().resize();
+    }
+  }, [lat, lon]);
+
   return (
     <Map
+      ref={mapRef}
+      key={`${lat}-${lon}`}
+      mapLib={maplibregl}
       initialViewState={{ longitude: lon, latitude: lat, zoom }}
       mapStyle={ESRI_SATELLITE_STYLE}
       style={{ width: "100%", height: "100%" }}
       attributionControl={false}
-      cooperativeGestures={compact}  // in card view require ctrl+scroll to zoom
+      cooperativeGestures={compact}
     >
       <NavigationControl
         position="top-right"
@@ -228,7 +239,6 @@ function SatelliteMapView({ lat, lon, zoom = 14, compact = false }) {
         visualizePitch={!compact}
       />
       {!compact && <ScaleControl position="bottom-left" unit="metric" />}
-      {/* Pulsing location pin */}
       <Marker longitude={lon} latitude={lat} anchor="center">
         <div className="relative">
           <div className="w-3 h-3 bg-red-500 border-2 border-white rounded-full shadow-lg" />
@@ -240,7 +250,7 @@ function SatelliteMapView({ lat, lon, zoom = 14, compact = false }) {
 }
 
 // ── Camera tile (default export) ───────────────────────────────────────────────
-export default function CameraFeedCard({ camera, onExpand }) {
+export default function CameraFeedCard({ camera, onExpand, onEdit, onDelete }) {
   const isHLS   = camera.stream_url?.includes(".m3u8");
   const isMJPEG = camera.stream_url?.includes("mjpg") || camera.stream_url?.includes("mjpeg");
   const isSnap  = camera.stream_url && !isHLS && !isMJPEG;
@@ -329,8 +339,8 @@ export default function CameraFeedCard({ camera, onExpand }) {
       </div>
 
       {/* Info bar */}
-      <div className="px-3 py-2 flex items-center justify-between gap-2">
-        <div className="min-w-0">
+      <div className="px-3 py-2 flex items-center gap-2">
+        <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate">{camera.name}</p>
           <p className="text-[10px] text-slate-500 font-mono truncate">{camera.location_label}</p>
         </div>
@@ -340,6 +350,28 @@ export default function CameraFeedCard({ camera, onExpand }) {
           </span>
           <span className="text-[9px] text-slate-400">{TYPE_LABELS[camera.feed_type] || camera.feed_type}</span>
         </div>
+        {(onEdit || onDelete) && (
+          <div className="flex gap-1 shrink-0 ml-1">
+            {onEdit && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(camera); }}
+                className="p-1.5 rounded text-slate-500 hover:text-flood-400 hover:bg-slate-100 dark:hover:bg-surface-raised transition-colors"
+                title="Edit camera"
+              >
+                <Pencil size={12} />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(camera); }}
+                className="p-1.5 rounded text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                title="Delete camera"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

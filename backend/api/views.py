@@ -2,9 +2,57 @@
 from __future__ import annotations
 
 import json as _json
+import logging
 import os
 
 import requests
+
+logger = logging.getLogger(__name__)
+
+
+def _get_ai_client_and_model():
+    """
+    Returns (client, model_name) trying providers in priority order:
+    1. Groq (free tier) — llama3-70b-8192
+    2. Local Ollama via ngrok tunnel — llama3
+    3. OpenAI — gpt-4o
+    4. None, None — use fallback response
+    """
+    from openai import OpenAI
+
+    # 1. Groq (free, fast, good quality)
+    groq_key = os.getenv('GROQ_API_KEY', '')
+    if groq_key:
+        try:
+            client = OpenAI(
+                api_key=groq_key,
+                base_url="https://api.groq.com/openai/v1"
+            )
+            logger.info("AI: using Groq provider")
+            return client, "llama3-70b-8192"
+        except Exception as e:
+            logger.warning(f"Groq init failed: {e}")
+
+    # 2. Local Ollama via ngrok tunnel
+    ngrok_url = os.getenv('NGROK_URL', '').rstrip('/')
+    if ngrok_url:
+        try:
+            client = OpenAI(
+                api_key="ollama",  # Ollama doesn't need a real key
+                base_url=f"{ngrok_url}/v1"
+            )
+            logger.info(f"AI: using ngrok/Ollama provider at {ngrok_url}")
+            return client, os.getenv('NGROK_MODEL', 'llama3')
+        except Exception as e:
+            logger.warning(f"ngrok/Ollama init failed: {e}")
+
+    # 3. OpenAI fallback
+    openai_key = os.getenv('OPENAI_API_KEY', '')
+    if openai_key:
+        logger.info("AI: using OpenAI provider")
+        return OpenAI(api_key=openai_key), "gpt-4o"
+
+    return None, None
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes, action
@@ -282,8 +330,8 @@ def ai_feedback(request):
     serializer.is_valid(raise_exception=True)
     payload = serializer.validated_data
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
+    ai_client, ai_model = _get_ai_client_and_model()
+    if ai_client is None:
         fallback = _fallback_ai_response(payload)
         output = AIFeedbackResponse({"response": fallback})
         return Response(output.data, status=status.HTTP_200_OK)
@@ -298,30 +346,42 @@ def ai_feedback(request):
         f"User question: {payload['question']}"
     )
 
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}"},
-        json={
-            "model": "gpt-4o",
-            "messages": [
+    try:
+        completion = ai_client.chat.completions.create(
+            model=ai_model,
+            messages=[
                 {"role": "system", "content": CRISISLENS_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.5,
-            "max_tokens": 500,
-        },
-        timeout=30,
-    )
+            temperature=0.5,
+            max_tokens=500,
+        )
+        message = completion.choices[0].message.content
+    except Exception as e:
+        logger.warning(f"ai_feedback completion failed: {e}")
+        message = _fallback_ai_response(payload)
 
-    if response.status_code != 200:
-        fallback = _fallback_ai_response(payload)
-        output = AIFeedbackResponse({"response": fallback})
-        return Response(output.data, status=status.HTTP_200_OK)
-
-    data = response.json()
-    message = data["choices"][0]["message"]["content"]
     output = AIFeedbackResponse({"response": message})
     return Response(output.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def ai_status(request):
+    """Return which AI provider is currently active."""
+    ai_client, ai_model = _get_ai_client_and_model()
+    if ai_client is None:
+        return Response({'provider': 'offline', 'model': None, 'available': False})
+
+    base_url = str(getattr(ai_client, 'base_url', ''))
+    if 'groq' in base_url:
+        provider = 'groq'
+    elif 'ngrok' in base_url or 'localhost' in base_url or '11434' in base_url:
+        provider = 'local'
+    else:
+        provider = 'openai'
+
+    return Response({'provider': provider, 'model': ai_model, 'available': True})
 
 
 class AIChatViewSet(viewsets.ViewSet):

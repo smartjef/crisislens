@@ -3,49 +3,23 @@
  * Slides in from the right over the camera grid.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import Map, { Marker, NavigationControl, ScaleControl } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import Hls from 'hls.js';
 import { Camera, ExternalLink, Globe, Info, WifiOff, X, Clock, Activity, Radio, Maximize2 } from 'lucide-react';
+import { HLSPlayer, SatelliteMapView, LiveOverlay, TelemetryTicker, ESRI_SATELLITE_STYLE } from './CameraFeedCard';
 
-const ESRI_SATELLITE_STYLE = {
-  version: 8,
-  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-  sources: {
-    satellite: {
-      type: 'raster',
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-      tileSize: 256,
-      maxzoom: 19,
-    },
-  },
-  layers: [{ id: 'sat', type: 'raster', source: 'satellite' }],
-};
-
-const STATUS_DOT = { online: 'bg-emerald-400', degraded: 'bg-amber-400', offline: 'bg-red-500' };
-const STATUS_TEXT = { online: 'text-emerald-400', degraded: 'text-amber-400', offline: 'text-red-400' };
-
-function HLSPlayer({ src }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!src || !ref.current) return;
-    if (Hls.isSupported()) {
-      const hls = new Hls({ lowLatencyMode: true });
-      hls.loadSource(src);
-      hls.attachMedia(ref.current);
-      return () => hls.destroy();
-    } else if (ref.current.canPlayType('application/vnd.apple.mpegurl')) {
-      ref.current.src = src;
-    }
-  }, [src]);
-  return <video ref={ref} autoPlay muted playsInline className="w-full h-full object-cover" />;
-}
+// Shared helpers are now imported from CameraFeedCard
 
 function LiveClock() {
   const [t, setT] = useState(new Date());
   useEffect(() => { const id = setInterval(() => setT(new Date()), 1000); return () => clearInterval(id); }, []);
   return <span className="tabular-nums">{t.toLocaleTimeString('en-KE', { hour12: false })} EAT</span>;
 }
+
+const STATUS_DOT = {
+  online:   'bg-emerald-400',
+  degraded: 'bg-amber-400',
+  offline:  'bg-red-500',
+};
 
 const TYPE_AGENCY = {
   cctv: 'NTSA / KMD CCTV',
@@ -56,9 +30,23 @@ const TYPE_AGENCY = {
 };
 
 export default function CameraDrawer({ camera, onClose, onFullscreen }) {
+  const containerRef = useRef(null);
+  const [hlsError, setHlsError] = useState(false);
   const isHLS   = camera?.stream_url?.includes('.m3u8');
   const isMJPEG = camera?.stream_url?.includes('mjpeg') || camera?.stream_url?.includes('mjpg');
-  const useMap  = !camera?.stream_url && camera?.lat && camera?.lon;
+  const useMap  = ((camera?.feed_type === 'satellite' || camera?.feed_type === 'river') && camera?.lat && camera?.lon)
+                   || (hlsError && camera?.lat && camera?.lon);
+
+  // Reset HLS error when camera changes
+  useEffect(() => { setHlsError(false); }, [camera?.id]);
+
+  const handleFullscreen = () => {
+    if (containerRef.current?.requestFullscreen) {
+      containerRef.current.requestFullscreen();
+    } else if (onFullscreen) {
+      onFullscreen(camera);
+    }
+  };
 
   if (!camera) return null;
 
@@ -68,67 +56,58 @@ export default function CameraDrawer({ camera, onClose, onFullscreen }) {
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-full max-w-md z-50 bg-surface border-l border-surface-border flex flex-col shadow-2xl">
+      <div className="fixed right-0 top-0 h-full w-full max-w-md z-50 bg-white dark:bg-surface border-l border-slate-200 dark:border-surface-border flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-surface-border shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[camera.status] || 'bg-slate-600'}`} />
+            <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[camera.status] || 'bg-slate-400'}`} />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-200 truncate">{camera.name}</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-200 truncate">{camera.name}</p>
               <p className="text-[10px] font-mono text-slate-500 truncate">{camera.location_label}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <button onClick={() => onFullscreen?.(camera)} className="p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-surface-raised transition-colors">
+            <button onClick={handleFullscreen} className="p-1.5 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-raised transition-colors">
               <Maximize2 size={14} />
             </button>
-            <button onClick={onClose} className="p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-surface-raised transition-colors">
+            <button onClick={onClose} className="p-1.5 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-raised transition-colors">
               <X size={14} />
             </button>
           </div>
         </div>
 
         {/* Feed area */}
-        <div className="aspect-video bg-slate-900 relative shrink-0">
+        <div ref={containerRef} className="aspect-video bg-slate-200 dark:bg-slate-900 relative shrink-0 overflow-hidden">
           {camera.status === 'offline' ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-              <WifiOff size={32} className="text-slate-600" />
-              <span className="text-[10px] font-mono text-slate-600 uppercase tracking-widest">Feed Offline</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-100 dark:bg-slate-900">
+              <WifiOff size={32} className="text-slate-400 dark:text-slate-600" />
+              <span className="text-[10px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-widest">Feed Offline</span>
             </div>
-          ) : isHLS ? (
-            <HLSPlayer src={camera.stream_url} />
+          ) : isHLS && !hlsError ? (
+            <HLSPlayer src={camera.stream_url} onError={() => setHlsError(true)} />
           ) : isMJPEG ? (
             <img src={camera.stream_url} alt={camera.name} className="w-full h-full object-cover" />
           ) : useMap ? (
-            <Map
-              initialViewState={{ longitude: camera.lon, latitude: camera.lat, zoom: camera.defaultZoom ?? 15 }}
-              mapStyle={ESRI_SATELLITE_STYLE}
-              style={{ width: '100%', height: '100%' }}
-              attributionControl={false}
-            >
-              <NavigationControl position="top-right" />
-              <Marker longitude={camera.lon} latitude={camera.lat} anchor="center">
-                <div className="w-3 h-3 bg-red-500 border-2 border-white rounded-full shadow-lg" />
-              </Marker>
-            </Map>
+            <SatelliteMapView
+              lat={camera.lat}
+              lon={camera.lon}
+              zoom={camera.defaultZoom ?? 15}
+              compact={false}
+            />
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-              <Camera size={32} className="text-slate-600" />
-              <span className="text-[10px] font-mono text-slate-600 uppercase tracking-widest">No Stream Configured</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-100 dark:bg-slate-900">
+              <Camera size={32} className="text-slate-400 dark:text-slate-600" />
+              <span className="text-[10px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-widest">No Stream Configured</span>
             </div>
           )}
 
-          {/* Live badge */}
+          {/* Overlays */}
           {camera.status !== 'offline' && (
-            <div className="absolute top-2 left-2 pointer-events-none flex items-center gap-1.5 bg-black/70 px-2 py-0.5 rounded-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-[8px] font-mono text-white uppercase tracking-widest">LIVE</span>
+            <div className="absolute inset-0 pointer-events-none">
+              <LiveOverlay isSatellite={camera.feed_type === 'satellite'} />
+              <TelemetryTicker cameraId={camera.id} />
             </div>
           )}
-          {/* Clock */}
-          <div className="absolute bottom-2 right-2 pointer-events-none bg-black/70 px-1.5 py-0.5 rounded-sm">
-            <span className="text-[9px] font-mono text-white"><LiveClock /></span>
-          </div>
         </div>
 
         {/* Metadata */}
@@ -136,12 +115,12 @@ export default function CameraDrawer({ camera, onClose, onFullscreen }) {
           {/* Status row */}
           <div className="flex items-center gap-3">
             <span className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded border ${
-              camera.status === 'online'   ? 'border-emerald-800 bg-emerald-900/20 text-emerald-400' :
-              camera.status === 'degraded' ? 'border-amber-800 bg-amber-900/20 text-amber-400' :
-                                            'border-red-800 bg-red-900/20 text-red-400'
+              camera.status === 'online'   ? 'border-emerald-400 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
+              camera.status === 'degraded' ? 'border-amber-400 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400' :
+                                            'border-red-400 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
             }`}>{camera.status}</span>
             <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">{camera.feed_type}</span>
-            <span className="text-[9px] font-mono text-slate-600 ml-auto"><LiveClock /></span>
+            <span className="text-[9px] font-mono text-slate-400 dark:text-slate-600 ml-auto"><LiveClock /></span>
           </div>
 
           {/* Info grid */}

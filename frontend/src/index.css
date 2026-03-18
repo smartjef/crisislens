@@ -53,6 +53,13 @@
   .maplibregl-popup {
     z-index: 20;
   }
+
+  /* Fullscreen map fixes */
+  :fullscreen .maplibregl-canvas,
+  :-webkit-full-screen .maplibregl-canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
 }
 
 /* ==========================================================================

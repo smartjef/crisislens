@@ -27,7 +27,7 @@ function SkeletonCard() {
 }
 
 // ── Grid (default export) ──────────────────────────────────────────────────────
-export default function CameraGrid({ cameras = [], loading = false, onExpand }) {
+export default function CameraGrid({ cameras = [], loading = false, onExpand, onEdit, onDelete }) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -50,7 +50,7 @@ export default function CameraGrid({ cameras = [], loading = false, onExpand }) 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {cameras.map((cam) => (
-        <CameraFeedCard key={cam.id} camera={cam} onExpand={onExpand} />
+        <CameraFeedCard key={cam.id} camera={cam} onExpand={onExpand} onEdit={onEdit} onDelete={onDelete} />
       ))}
     </div>
   );
