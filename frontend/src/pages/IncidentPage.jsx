@@ -14,12 +14,14 @@
 import React, { useEffect, useState } from "react";
 import {
   AlertCircle, ChevronRight, Clock, MapPin, MessageSquare,
-  Plus, RefreshCw, Users, X, Loader2, CheckCircle,
+  Plus, RefreshCw, Users, X, Loader2, CheckCircle, Video, Radio
 } from "lucide-react";
+import Map, { Marker } from "react-map-gl/maplibre";
+import 'maplibre-gl/dist/maplibre-gl.css';
 import client from "../api/client";
 import { useAlertStore } from "../store/useAlertStore";
 
-const DETAIL_TABS = ['overview', 'timeline', 'resources', 'broadcasts'];
+const DETAIL_TABS = ['overview', 'timeline', 'resources', 'map', 'intel', 'broadcasts'];
 
 const SEVERITY_STYLES = {
   critical: "text-red-600 dark:text-red-400    border-red-400 dark:border-red-700    bg-red-50  dark:bg-red-900/30",
@@ -208,31 +210,108 @@ function AddUpdateForm({ incidentId, onAdded }) {
 }
 
 // ── Resources Tab ──────────────────────────────────────────────────────────────
-function ResourcesTab({ incidentId }) {
-  const [units, setUnits] = useState([]);
+function ResourcesTab({ incident }) {
+  const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    client.get(`/api/field-units/?incident=${incidentId}`).then(r => {
-      setUnits(r.data.results || r.data || []);
+
+  const loadResources = () => {
+    client.get(`/api/incident-resources/?incident=${incident.id}`).then(r => {
+      setResources(r.data.results || r.data || []);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [incidentId]);
+  };
+
+  useEffect(() => {
+    loadResources();
+  }, [incident.id]);
+
+  const removeResource = (id) => {
+    client.delete(`/api/incident-resources/${id}/`).then(loadResources);
+  };
 
   const TYPE_LABELS = { vehicle: '🚗', boat: '⛵', drone: '🚁', foot: '🚶', helicopter: '🚁' };
 
   if (loading) return <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-12 rounded border border-surface-border bg-surface animate-pulse" />)}</div>;
-  if (units.length === 0) return <div className="text-center py-10"><p className="text-xs font-mono text-slate-600">No field units assigned</p></div>;
+  if (resources.length === 0) return <div className="text-center py-10"><p className="text-xs font-mono text-slate-600">No resources assigned</p></div>;
 
   return (
     <div className="space-y-2">
-      {units.map(u => (
-        <div key={u.id} className="flex items-center gap-3 p-3 rounded border border-surface-border bg-surface">
-          <span className="text-base">{TYPE_LABELS[u.unit_type] || '🚗'}</span>
+      {resources.map(r => (
+        <div key={r.id} className="flex items-center gap-3 p-3 rounded border border-surface-border bg-surface">
+          <span className="text-base">{r.resource_type === 'camera' ? <Video size={16} className="text-cyan-400"/> : TYPE_LABELS[r.resource_details?.unit_type] || '🚗'}</span>
           <div className="flex-1">
-            <p className="text-xs font-medium text-slate-300">{u.name}</p>
-            <p className="text-[9px] font-mono text-slate-600">{u.county_name}</p>
+            <p className="text-xs font-medium text-slate-300">{r.resource_name}</p>
+            <p className="text-[9px] font-mono text-slate-500 uppercase">{r.resource_type}</p>
           </div>
-          <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border ${u.status === 'active' ? 'text-emerald-400 border-emerald-800 bg-emerald-900/20' : 'text-slate-500 border-slate-700'}`}>{u.status}</span>
+          <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border ${r.resource_details?.status === 'active' || r.resource_details?.status === 'online' ? 'text-emerald-400 border-emerald-800 bg-emerald-900/20' : 'text-slate-500 border-slate-700'}`}>
+            {r.resource_details?.status || 'Unknown'}
+          </span>
+          <button onClick={() => removeResource(r.id)} className="text-slate-600 hover:text-red-400 ml-2">
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Map Tab ────────────────────────────────────────────────────────────────────
+function MapTab({ incident }) {
+  const [viewState, setViewState] = useState({
+    longitude: incident.lon || 36.82,
+    latitude:  incident.lat || -1.29,
+    zoom: 10
+  });
+
+  return (
+    <div className="w-full h-full bg-slate-900 rounded overflow-hidden relative">
+      <Map
+        {...viewState}
+        onMove={evt => setViewState(evt.viewState)}
+        mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+      >
+        {(incident.lat && incident.lon) && (
+          <Marker longitude={incident.lon} latitude={incident.lat} anchor="bottom">
+            <MapPin className="text-red-500 w-8 h-8 drop-shadow-lg" />
+            <div className="bg-red-900/80 text-white text-[9px] font-mono px-1 py-0.5 rounded mt-1 whitespace-nowrap">Incident Focus</div>
+          </Marker>
+        )}
+      </Map>
+    </div>
+  );
+}
+
+// ── Intel Tab ──────────────────────────────────────────────────────────────────
+function IntelTab({ incident }) {
+  const [intel, setIntel] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    client.get(`/api/social-intel/?county=${incident.county}`).then(r => {
+      setIntel(r.data.results || r.data || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [incident.county]);
+
+  if (loading) return <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-16 rounded border border-surface-border bg-surface animate-pulse" />)}</div>;
+  if (intel.length === 0) return <div className="text-center py-10"><p className="text-xs font-mono text-slate-600">No social intel for this county</p></div>;
+
+  return (
+    <div className="space-y-3">
+      {intel.map(item => (
+        <div key={item.id} className="p-3 rounded border border-surface-border bg-surface">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Radio size={12} className="text-purple-400" />
+              <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">{item.source}</span>
+            </div>
+            <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border ${item.sentiment === 'urgent' ? 'text-red-400 border-red-800' : 'text-slate-400 border-slate-700'}`}>
+              {item.sentiment}
+            </span>
+          </div>
+          <p className="text-xs font-medium text-slate-200">{item.title}</p>
+          {item.snippet && <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{item.snippet}</p>}
+          <p className="text-[8px] font-mono text-slate-600 mt-2">{new Date(item.ingested_at).toLocaleString('en-KE')}</p>
         </div>
       ))}
     </div>
@@ -397,7 +476,19 @@ function IncidentDetailDrawer({ incident, onClose, onUpdated }) {
 
         {detailTab === 'resources' && (
           <div className="p-4 flex-1 overflow-y-auto">
-            <ResourcesTab incidentId={incident.id} />
+            <ResourcesTab incident={incident} />
+          </div>
+        )}
+
+        {detailTab === 'map' && (
+          <div className="flex-1">
+            <MapTab incident={incident} />
+          </div>
+        )}
+
+        {detailTab === 'intel' && (
+          <div className="p-4 flex-1 overflow-y-auto">
+            <IntelTab incident={incident} />
           </div>
         )}
 

@@ -4,9 +4,10 @@ from __future__ import annotations
 from rest_framework import serializers
 from api.models import (
     County, SubCounty, FloodObservation, FloodPrediction, FloodAlert, Report, AIChatMessage,
-    Incident, IncidentUpdate, FieldUnit, FieldUnitPing,
+    Incident, IncidentUpdate, IncidentResource, FieldUnit, FieldUnitPing,
     CameraFeed, SocialIntelItem, WeatherObservation,
     BroadcastRecipient, EarlyWarningBroadcast, AnnotatedZone,
+    AlertSubscription, APIKey, BroadcastDeliveryLog
 )
 
 class DroughtPredictionRequest(serializers.Serializer):
@@ -202,6 +203,31 @@ class CountyListSerializer(serializers.ModelSerializer):
         return self._get_aggregated(obj)["lead_time_days"]
 
 
+class BroadcastDeliveryLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BroadcastDeliveryLog
+        fields = "__all__"
+
+class EarlyWarningBroadcastSerializer(serializers.ModelSerializer):
+    sent_by_name = serializers.CharField(source="sent_by.get_full_name", read_only=True)
+    county_names = serializers.SerializerMethodField()
+    delivery_summary = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EarlyWarningBroadcast
+        fields = "__all__"
+
+    def get_county_names(self, obj):
+        return [c.name for c in obj.counties.all()]
+
+    def get_delivery_summary(self, obj):
+        return {
+            "delivered": obj.delivered_count,
+            "failed": obj.failed_count,
+            "total": obj.recipient_count,
+        }
+
+
 class CountyDetailSerializer(serializers.ModelSerializer):
     top_sub_counties = serializers.SerializerMethodField()
 
@@ -285,6 +311,33 @@ class IncidentSerializer(serializers.ModelSerializer):
             "closed_at", "updates", "update_count",
         ]
         read_only_fields = ["opened_by", "created_at", "updated_at"]
+
+
+class IncidentResourceSerializer(serializers.ModelSerializer):
+    resource_name = serializers.SerializerMethodField()
+    resource_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = IncidentResource
+        fields = [
+            "id", "incident", "resource_type", "field_unit", "camera",
+            "assigned_at", "resource_name", "resource_details"
+        ]
+        read_only_fields = ["assigned_at"]
+
+    def get_resource_name(self, obj):
+        if obj.resource_type == "field_unit" and obj.field_unit:
+            return obj.field_unit.name
+        elif obj.resource_type == "camera" and obj.camera:
+            return obj.camera.name
+        return "Unknown"
+
+    def get_resource_details(self, obj):
+        if obj.resource_type == "field_unit" and obj.field_unit:
+            return {"unit_type": obj.field_unit.unit_type, "status": obj.field_unit.status}
+        elif obj.resource_type == "camera" and obj.camera:
+            return {"feed_type": obj.camera.feed_type, "status": obj.camera.status}
+        return {}
 
 
 class FieldUnitPingSerializer(serializers.ModelSerializer):

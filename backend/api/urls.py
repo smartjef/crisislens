@@ -16,11 +16,13 @@ router.register(r"ai/chat",       views.AIChatViewSet,          basename="ai-cha
 router.register(r"ai/simulate",   views.FloodSimulationViewSet, basename="ai-simulate")
 # ── Enterprise ────────────────────────────────────────────────────────────────
 router.register(r"incidents",            views.IncidentViewSet,          basename="incident")
+router.register(r"incident-resources",   views.IncidentResourceViewSet,  basename="incident-resource")
 router.register(r"field-units",          views.FieldUnitViewSet,         basename="field-unit")
 router.register(r"cameras",              views.CameraFeedViewSet,        basename="camera")
 router.register(r"social-intel",         views.SocialIntelViewSet,       basename="social-intel")
 router.register(r"broadcasts",           views.BroadcastViewSet,         basename="broadcast")
 router.register(r"broadcast-recipients", views.BroadcastRecipientViewSet, basename="broadcast-recipient")
+router.register(r"broadcast-delivery-logs", views.BroadcastDeliveryLogViewSet, basename="broadcast-delivery-log")
 router.register(r"weather",              views.WeatherObservationViewSet, basename="weather")
 router.register(r"annotated-zones",      views.AnnotatedZoneViewSet,     basename="annotated-zone")
 router.register(r"api-keys",             views.APIKeyViewSet,            basename="api-key")

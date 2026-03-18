@@ -499,4 +499,3 @@ export function AdminPage() {
     );
 }
 
-export { default as ReportsPage } from './ReportsPage';

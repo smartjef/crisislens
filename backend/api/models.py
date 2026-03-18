@@ -220,6 +220,36 @@ class IncidentUpdate(models.Model):
         return f"Update on {self.incident.title} at {self.timestamp}"
 
 
+class IncidentResource(models.Model):
+    RESOURCE_TYPES = [
+        ("field_unit", "Field Unit"),
+        ("camera", "Camera Feed"),
+    ]
+    
+    incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="resources")
+    resource_type = models.CharField(max_length=20, choices=RESOURCE_TYPES)
+    field_unit = models.ForeignKey('FieldUnit', on_delete=models.CASCADE, null=True, blank=True, related_name="incident_assignments")
+    camera = models.ForeignKey('CameraFeed', on_delete=models.CASCADE, null=True, blank=True, related_name="incident_assignments")
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-assigned_at"]
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    (models.Q(resource_type="field_unit") & models.Q(field_unit__isnull=False) & models.Q(camera__isnull=True)) |
+                    (models.Q(resource_type="camera") & models.Q(camera__isnull=False) & models.Q(field_unit__isnull=True))
+                ),
+                name="valid_incident_resource"
+            )
+        ]
+
+    def __str__(self) -> str:
+        name = self.field_unit.name if self.resource_type == "field_unit" else self.camera.name
+        return f"{self.get_resource_type_display()} ({name}) -> {self.incident.title}"
+
+
+
 class FieldUnit(models.Model):
     TYPE_CHOICES = [
         ("vehicle", "Vehicle"),
@@ -455,6 +485,28 @@ class EarlyWarningBroadcast(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.get_channel_display()}] Broadcast {self.id} — {self.status}"
+
+
+class BroadcastDeliveryLog(models.Model):
+    STATUS_CHOICES = [
+        ("sent", "Sent"),
+        ("delivered", "Delivered"),
+        ("failed", "Failed"),
+    ]
+
+    broadcast = models.ForeignKey(EarlyWarningBroadcast, on_delete=models.CASCADE, related_name="delivery_logs")
+    recipient = models.ForeignKey(BroadcastRecipient, on_delete=models.SET_NULL, null=True, blank=True)
+    contact = models.CharField(max_length=150)  # snapshot of phone/email
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="sent")
+    error_message = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [models.Index(fields=["broadcast", "status"])]
+
+    def __str__(self) -> str:
+        return f"{self.contact} — {self.status} (Broadcast {self.broadcast_id})"
 
 
 class AnnotatedZone(models.Model):

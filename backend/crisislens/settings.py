@@ -106,10 +106,29 @@ STORAGES = {
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ── OnfonMedia SMS ────────────────────────────────────────────────────────────
-ONFON_API_KEY = env("ONFON_API_KEY", default="")
-ONFON_SENDER_ID = env("ONFON_SENDER_ID", default="CRISISLENS")
-ONFON_SMS_URL = "https://api.onfonmedia.co.ke/v1/sms/SendBulkSMS"
+# ── Broadcast Configurations ────────────────────────────────────────────────────
+# Email (Brevo / General SMTP)
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = env("SMTP_HOST", default="smtp-relay.brevo.com")
+EMAIL_PORT = env.int("SMTP_PORT", default=587)
+EMAIL_HOST_USER = env("SMTP_USER", default="")
+EMAIL_HOST_PASSWORD = env("SMTP_PASS", default="")
+EMAIL_USE_TLS = True
+DEFAULT_FROM_EMAIL = f'{env("FROM_NAME", default="CrisisLens")} <{env("FROM_EMAIL", default="info@mauzoplus.app")}>'
+
+# TextSMS.co.ke API (Onfon)
+TEXTSMS_API_KEY = env("ONFON_API_KEY", default="")
+TEXTSMS_PARTNER_ID = env("ONFON_PARTNER_ID", default="")
+TEXTSMS_SHORTCODE = env("ONFON_SHORTCODE", default="LENGO")
+TEXTSMS_BULK_URL = "https://sms.textsms.co.ke/api/services/sendbulk/"
+
+# Pusher Channels & Beams
+PUSHER_APP_ID = env("PUSHER_APP_ID", default="")
+PUSHER_KEY = env("PUSHER_KEY", default="")
+PUSHER_SECRET = env("PUSHER_SECRET", default="")
+PUSHER_CLUSTER = env("PUSHER_CLUSTER", default="")
+PUSHER_BEAMS_INSTANCE_ID = env("PUSHER_BEAMS_INSTANCE_ID", default="")
+PUSHER_BEAMS_SECRET_KEY = env("PUSHER_BEAMS_SECRET_KEY", default="")
 
 # ── Open AI ────────────────────────────────────────────────────────────────────
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")

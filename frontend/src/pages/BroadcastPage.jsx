@@ -14,8 +14,9 @@
 import React, { useEffect, useState } from "react";
 import {
   CheckCircle, ChevronRight, Globe, Loader2, Mail,
-  MessageCircle, MessageSquare, RefreshCw, Send, X,
+  MessageCircle, MessageSquare, RefreshCw, Send, X, ExternalLink
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import client from "../api/client";
 
 const CHANNEL_INFO = {
@@ -95,16 +96,24 @@ function BroadcastRow({ broadcast, selected, onSelect }) {
             <p className="text-[9px] font-mono uppercase text-slate-600 tracking-widest">Failed</p>
           </div>
           {broadcast.recipient_count > 0 && (
-            <div className="col-span-3">
+            <div className="col-span-3 space-y-3">
               <div className="w-full h-1.5 bg-surface rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all"
                   style={{ width: `${Math.round((broadcast.delivered_count / broadcast.recipient_count) * 100)}%` }}
                 />
               </div>
-              <p className="text-[9px] font-mono text-slate-600 mt-1 text-right">
-                {Math.round((broadcast.delivered_count / broadcast.recipient_count) * 100)}% delivery rate
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-mono text-slate-600">
+                  {Math.round((broadcast.delivered_count / broadcast.recipient_count) * 100)}% delivery rate
+                </p>
+                <Link 
+                  to={`/broadcasts/${broadcast.id}`}
+                  className="flex items-center gap-1 text-[10px] font-mono text-flood-400 hover:text-flood-300 transition-colors bg-flood-600/10 px-2 py-0.5 rounded border border-flood-600/20"
+                >
+                  View Detailed Log <ExternalLink size={10} />
+                </Link>
+              </div>
             </div>
           )}
         </div>

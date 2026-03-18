@@ -16,9 +16,9 @@ from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse
 from api.models import (
     County, SubCounty, FloodAlert, AuditLog, Report, AIChatMessage, AIRequestLog,
-    Incident, IncidentUpdate, FieldUnit, FieldUnitPing,
+    Incident, IncidentUpdate, IncidentResource, FieldUnit, FieldUnitPing,
     CameraFeed, SocialIntelItem, WeatherObservation,
-    BroadcastRecipient, EarlyWarningBroadcast, AnnotatedZone,
+    BroadcastRecipient, EarlyWarningBroadcast, AnnotatedZone, BroadcastDeliveryLog
 )
 from api.permissions import IsCountyOfficer, IsResponder, IsCountyMember, _NAT, IsAnalyst, IsNationalOps
 from api.serializers import (
@@ -38,6 +38,7 @@ from api.serializers import (
     AIChatRequestSerializer,
     IncidentSerializer,
     IncidentUpdateSerializer,
+    IncidentResourceSerializer,
     FieldUnitSerializer,
     FieldUnitPingSerializer,
     CameraFeedSerializer,
@@ -46,6 +47,7 @@ from api.serializers import (
     BroadcastRecipientSerializer,
     EarlyWarningBroadcastSerializer,
     AnnotatedZoneSerializer,
+    BroadcastDeliveryLogSerializer,
 )
 from api.services import FLOOD_INDICATORS, score_drought, score_flood
 
@@ -1006,6 +1008,38 @@ class IncidentViewSet(viewsets.ModelViewSet):
             is_system=True,
         )
         return Response(self.get_serializer(incident).data)
+
+
+class BroadcastDeliveryLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = BroadcastDeliveryLog.objects.all()
+    serializer_class = BroadcastDeliveryLogSerializer
+    filterset_fields = ["broadcast", "status"]
+
+    def get_queryset(self):
+        qs = BroadcastDeliveryLog.objects.select_related("broadcast", "recipient").all()
+        broadcast_id = self.request.query_params.get("broadcast")
+        status_param = self.request.query_params.get("status")
+        if broadcast_id:
+            qs = qs.filter(broadcast_id=broadcast_id)
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs
+
+
+class IncidentResourceViewSet(viewsets.ModelViewSet):
+    serializer_class = IncidentResourceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = IncidentResource.objects.select_related("incident", "field_unit", "camera").all()
+        incident_id = self.request.query_params.get("incident")
+        if incident_id:
+            qs = qs.filter(incident_id=incident_id)
+        return qs
+
+    def perform_create(self, serializer):
+        sr = serializer.save()
+        AuditLog.log(self.request.user, "Added Resource to Incident", sr.incident)
 
 
 class FieldUnitViewSet(viewsets.ModelViewSet):

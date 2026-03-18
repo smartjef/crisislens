@@ -12,7 +12,9 @@ import DashboardRouter from './DashboardRouter';
 import LoginPage from '../pages/LoginPage';
 import { UnauthorizedPage, NotFoundPage } from '../pages/ErrorPages';
 import { NationalOpsDashboard, CountyDashboard, ResponderDashboard, AnalystDashboard } from '../pages/Dashboards';
-import { AlertsPage, AlertDetailPage, ReportsPage, AdminPage } from '../pages/GenericPages';
+import { AlertsPage, AlertDetailPage, AdminPage } from '../pages/GenericPages';
+import AnalyticsPage from '../pages/AnalyticsPage';
+import ReportsPage from '../pages/ReportsPage';
 import SettingsPage from '../pages/SettingsPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import CrisisLensAI from '../pages/CrisisLensAI';
@@ -20,6 +22,7 @@ import CrisisLensAI from '../pages/CrisisLensAI';
 // Enterprise pages
 import IncidentPage   from '../pages/IncidentPage';
 import BroadcastPage  from '../pages/BroadcastPage';
+import BroadcastLog   from '../pages/BroadcastLog';
 import CameraPage       from '../pages/CameraPage';
 import CameraManagement from '../pages/CameraManagement';
 import SocialIntelPage from '../pages/SocialIntelPage';
@@ -59,6 +62,10 @@ export default function AppRouter() {
                     <Route path="/alerts/:id"
                         element={<PrivateRoute allowedRoles={['national_ops','county_officer','responder','super_admin']}><AlertDetailPage /></PrivateRoute>} />
 
+                    {/* Analytics */}
+                    <Route path="/analytics"
+                        element={<PrivateRoute allowedRoles={['analyst','national_ops','super_admin']}><AnalyticsPage /></PrivateRoute>} />
+
                     {/* Reports */}
                     <Route path="/reports"
                         element={<PrivateRoute allowedRoles={['analyst','national_ops','super_admin']}><ReportsPage /></PrivateRoute>} />
@@ -69,6 +76,8 @@ export default function AppRouter() {
 
                     <Route path="/broadcasts"
                         element={<PrivateRoute allowedRoles={['national_ops','county_officer','super_admin']}><BroadcastPage /></PrivateRoute>} />
+                    <Route path="/broadcasts/:id"
+                        element={<PrivateRoute allowedRoles={['national_ops','county_officer','super_admin']}><BroadcastLog /></PrivateRoute>} />
 
                     <Route path="/contacts"
                         element={<PrivateRoute allowedRoles={['super_admin','national_ops','county_officer']}><ContactsPage /></PrivateRoute>} />
